@@ -201,6 +201,8 @@ Voir la section « À vérifier en local » (§6) : V1 à V8.
 
 ## 3. Plan détaillé du lot 1
 
+> Plan d'avant le développement, gardé pour mémoire. Ce qui a été réellement livré, y compris les écarts à ce plan, est au §8.
+
 ### 3.1 Choix structurants (sous réserve des questions du §5)
 
 - **Pas de nouvelle dépendance.** Git via `execFile`, comme `lib/git-changes.ts`. YAML via le `parseFrontmatter` du SDK et `js-yaml` (déjà présent) pour sérialiser. L'éditeur est un `<textarea>` monospace avec un aperçu `MarkdownBody` : pi-web n'a pas de composant d'édition, seulement des `<textarea>` (comme dans `AgentsConfig.tsx`). CodeMirror 6 seulement si vous le demandez (Q8).
@@ -428,7 +430,19 @@ Pour les lots suivants, à confirmer dès maintenant si possible :
   4. Attendu : un appel direct de l'outil `mcp__demo__<outil>` dans le transcript (pas de `codemode` ni `tool_search`), puis une réponse qui utilise son résultat. Noter le nombre d'outils déclarés et si le modèle choisit le bon.
   5. Même essai en CLI : `cd <pack> && pi --model <provider>/<modèle> --tools read,'mcp__demo__*'`.
 - **V7 (lot 3)** : serveur avec `"headers": { "Authorization": "Bearer ${X}" }` et `X` fourni par `.env` : la connexion réussit, et la valeur n'apparaît ni dans `.pi/mcp.json` ni dans les journaux.
-- **V8 (lots 1 et 2)** : `curl '/api/models?cwd=/workspace/packs/<pack>'` doit renvoyer le `defaultModel` du pack et non celui du global (Q16).
+- **V8 (lots 1 et 2)** : après avoir choisi un modèle par défaut dans Configuration, `curl '<studio>/api/studio/packs/<pack>/models'` (la liste de pi-web pour le dossier du pack) doit renvoyer en `defaultModel` celui du pack, pas celui du global (Q16). Ouvrir ensuite une nouvelle session pi-web dans le pack : le modèle présélectionné doit être celui du pack.
+
+Ajouts du lot 1 :
+
+- **V9 — `STUDIO_HOME=true`.** Avec la variable, `/` mène à `/studio` (après la connexion si `PI_WEB_PASSWORD` est défini). « Retour à Pi Web » ouvre pi-web, et les liens de session (`/?session=…`) aussi.
+- **V10 — Parcours complet dans le conteneur**, avec le vrai volume et deux comptes derrière Traefik :
+  1. Créer un pack, une skill, l'enregistrer.
+  2. Vérifier que le bandeau « Pi ne chargera pas… » n'apparaît **pas** (confiance héritée, V2).
+  3. Ouvrir « Valider » : la rubrique « Ce que Pi charge » doit lister la skill.
+  4. Dans une session pi-web ouverte sur le pack, demander à l'agent de modifier `AGENTS.md`. Revenir au Studio : le bandeau « Modifié en dehors du Studio » doit apparaître ; « Conserver » puis « Annuler » doivent chacun ajouter une version.
+  5. Faire enregistrer le même fichier par les deux comptes en même temps : le second reçoit « Ce fichier a été modifié ailleurs… », sans perte.
+- **V11 — Lien Providers.** « Ouvrir les réglages des modèles » ouvre pi-web ; un clic sur Réglages affiche directement la rubrique des modèles.
+- **V12 — Tablette.** Parcours V10 sur une tablette (ou à 820 px de large) : navigation en ligne, liste au-dessus de l'éditeur, barre d'enregistrement toujours visible.
 
 ---
 
@@ -437,3 +451,67 @@ Pour les lots suivants, à confirmer dès maintenant si possible :
 - 2026-10-14 : ajout de `docs/studio/maquette/` (6 captures). Seul ce dossier venait de l'archive : le reste de `docs/` existait déjà dans le dépôt.
 - 2026-10-14 : rédaction de ce fichier. Aucun code modifié.
 - 2026-10-14 : notes validées ; décisions consignées au §0 ; STUDIO.md mis à jour (§1, lot 3, §7.2, §9, §10.5).
+- 2026-10-14 : lot 1 livré (§8). Critères 1 et 2 vérifiés ; critère 3 et V1–V12 à vérifier en local.
+
+---
+
+## 8. Lot 1 — livraison (2026-10-14)
+
+### 8.1 Ce qui est livré
+
+- **Accueil `/studio`** : liste des packs (titre, statut, version, date de dernière modification), « Nouveau pack » (titre, identifiant proposé à partir du titre, description), état vide avec l'action suivante.
+- **Atelier `/studio/<pack>`** : en-tête (pack actif, version, utilisatrice, Mode avancé, Valider, Retour à Pi Web), navigation (Consignes, Skills, MCP et Tests marqués « bientôt », Configuration, Historique, Providers) et parcours Concevoir / Connecter / Évaluer avec l'état de chaque étape.
+- **Consignes** : contexte du pack (AGENTS.md) et consignes système (APPEND_SYSTEM.md). En mode avancé, s'y ajoutent les consignes de remplacement (SYSTEM.md), avec un avertissement si ce fichier existe.
+- **Éditeur** : zone de texte avec aperçu Markdown (`MarkdownBody` de pi-web). Tab et Maj+Tab indentent, Échap puis Tab quitte la zone ; Ctrl/Cmd+S enregistre. Indicateur « Modifications non enregistrées », garde à la fermeture de l'onglet et au changement d'écran, note de version facultative.
+- **Skills** : liste filtrable avec l'état de chaque skill (Prête, À vérifier, À corriger), création depuis le modèle, import d'un `SKILL.md` collé ou téléversé, renommage, suppression avec confirmation. Formulaire (nom affiché, description avec compteur, instructions) ; le fichier complet n'est éditable qu'en mode avancé. La validation s'affiche ligne par ligne avec la correction attendue.
+- **Historique** : versions d'un fichier (aperçu, « Restaurer cette version »), historique du pack, et restauration d'une skill supprimée depuis cet historique (Q14).
+- **Modifié en dehors du Studio** : bandeau listant les fichiers concernés, avec « Conserver » et « Annuler » (Q15).
+- **Configuration** : titre, description, statut, version (lecture seule), modèle par défaut (liste de pi-web pour le dossier du pack). En mode avancé : réglages Pi bruts.
+- **Valider** : contexte rédigé, consignes rédigées, au moins une skill, problèmes de chaque skill, et ce que Pi charge réellement (chargeur de ressources de pi-web).
+- **Providers** : renvoi vers les réglages des modèles de pi-web.
+- **API** `/api/studio/*` : `me`, `packs`, `packs/<pack>` (GET, PATCH), `files`, `skills`, `skills/<skill>` (GET, PUT, PATCH, DELETE), `history` (GET, POST), `models`, `pi-check`.
+
+### 8.2 Modifications du code amont (réalisées)
+
+| # | Fichier | Modification |
+|---|---|---|
+| M1 | `proxy.ts` | Matcher étendu à `/studio` et `/studio/:path*` (mot de passe et contrôle d'hôte, comme `/`). Redirection `/` → `/studio` si `STUDIO_HOME=true`, uniquement pour un `/` sans paramètres (Q10). |
+| M2 | `lib/i18n/types.ts` | `Locale` reçoit `"fr"`. |
+| M3 | `lib/i18n/registry.ts`, `lib/i18n/messages/fr.ts` | `fr` enregistré comme locale **partielle** : `getLocalePlugin("fr")` la trouve, mais elle n'est ni proposée dans le menu des langues de pi-web ni détectée depuis le navigateur. Raison : le test amont exige les 1 432 clés pour toute locale proposée, alors que Q7 limite la traduction au Studio. Nouvel export `getRegisteredLocales()`. |
+| M4 | `hooks/useI18n.tsx` | `readInitialLocale()` accepte toute locale enregistrée. `I18nProvider` reçoit deux props facultatives : `defaultLocale` (« fr » pour `/studio` quand aucune langue n'a été choisie) et `extraMessages` (repli anglais des clés Studio). Sans ces props, pi-web se comporte exactement comme avant. |
+| M4 bis | `lib/i18n/format.ts` | Type de `SHORT_TIME_UNITS` limité aux locales complètes (sans `fr`), sinon `tsc` échoue. Le comportement est inchangé : le test amont l'exige. |
+| M5 | `lib/i18n/registry.test.mjs` | Un cas `fr` : enregistrée, partielle, non détectée. |
+| M6 | `components/SessionSidebar.tsx` | Bouton « π Studio » au bout de la ligne d'outils, **après** la recherche : le test amont fige l'enchaînement Nouveau → Recherche. Seul le « π » reste quand la barre est étroite. |
+| M7 | `package.json` | Aucune modification : pas de nouvelle dépendance. |
+
+Rien d'autre n'est modifié dans l'amont. La route `api/studio/packs/<pack>/models` appelle la route `GET /api/models` de pi-web sans la modifier. Au passage, elle ajoute le dossier du pack aux dossiers autorisés de pi-web (`allowFileRoot`), comme le fait déjà l'ouverture d'une session dans ce dossier.
+
+### 8.3 Écarts au plan du §3 et choix à connaître
+
+- **« Annuler » crée une version vide.** Après restauration, les fichiers sont identiques à la dernière version, donc il n'y a rien à enregistrer. Le Studio enregistre quand même une version vide qui liste les fichiers abandonnés (Q15 : « les deux créent un nouveau commit »), par traçabilité. Les fichiers ajoutés hors Studio sont supprimés.
+- **Les commits passent par un index temporaire**, construit à partir de la dernière version. Seuls les chemins enregistrés sont commités, et ce qu'une personne aurait indexé à la main dans le dépôt n'est ni commité ni perdu. Toutes les écritures et tous les commits du dépôt des packs passent par une seule file d'attente (`serializeByKey`).
+- **Auteur et committer** sont tous deux la personne connectée ; aucune configuration Git globale n'est nécessaire.
+- **Dépôt existant** : si `STUDIO_PACKS_DIR` est déjà un dépôt, le Studio n'y ajoute pas de `.gitignore` et ne commite jamais les fichiers hors packs. Sinon, `git init` et un `.gitignore` minimal (Q11).
+- **Liens symboliques** : tout chemin de pack qui traverse un lien est refusé, y compris un lien interne. Un pack ou une skill dont le dossier est un lien n'est pas listé.
+- **Messages de version** : `[pack] Modifie skill x`. Une note saisie devient la première ligne, et le résumé généré passe dans le corps. Les dates des messages de restauration sont en UTC.
+- **Identité** : sans `STUDIO_TRUSTED_PROXY=true`, l'en-tête est ignoré. Une identité inconnue de `studio-users.json` (variable `STUDIO_USERS_FILE`, par défaut `./studio-users.json`) donne `<id> <<id>@studio.invalid>` et un avertissement unique dans les journaux (Q6).
+- **Modèles du Studio** : dossier `studio-templates/`, ou `STUDIO_TEMPLATES_DIR`. **Pour le déploiement**, le build du fork doit garder ce dossier à côté du serveur. Le champ `files` de `package.json` (publication npm de pi-web) ne l'inclut pas, ce qui est sans effet sur un build depuis les sources.
+- **e2e** : `e2e/studio.mjs` est autonome, sur le modèle de `e2e/terminal.mjs`, et n'est pas branché dans `e2e/run.mjs` pour ne pas modifier ce fichier amont. Lancement : `node e2e/studio.mjs` (aucun serveur de dev en cours), ou `STUDIO_E2E_URL=… STUDIO_E2E_PACKS_DIR=… node e2e/studio.mjs` contre un serveur déjà lancé avec `STUDIO_DEFAULT_USER=geraldine`.
+- **Diagnostics de Pi** dans « Valider » : affichés tels que Pi les produit, donc en anglais (règle i18n de pi-web pour les messages du serveur).
+- **Hors lot 1, notés pour plus tard** : pi-web n'a pas de lien direct vers une rubrique des Réglages. Le Studio se contente de mémoriser « Modèles » comme dernière rubrique ouverte (V11). Un paramètre d'URL côté pi-web serait une modification amont de plus.
+
+### 8.4 Tests
+
+- **Unitaires et routes** (`npm test`) : `lib/studio/{validate,packs,identity,skill-file,i18n,proxy,text-edit}.test.mjs` et `app/api/studio/routes.test.mjs`, soit 41 tests, tous verts.
+- **Parité avec Pi** : une skill produite par le modèle du Studio est chargée sans diagnostic par le `DefaultResourceLoader` du SDK (`skill-file.test.mjs`).
+- **e2e** (`e2e/studio.mjs`, Chromium) : vert. Il couvre le parcours complet du critère d'acceptation, l'absence de jargon à chaque étape et `git log` (4 versions, une par enregistrement, même auteur).
+- **Suite complète de pi-web** : `tsc --noEmit` et `npm run lint` sont propres. Dans `npm test`, un seul échec, préexistant et propre à l'environnement cloud : `lib/rotate-preview-secrets.test.mjs` (« read-only dir ») échoue parce que les tests tournent en root. Deux autres échecs préexistants disparaissent quand on retire les identifiants AWS que l'environnement cloud injecte (`app/api/models/route.test.mjs`, `lib/rpc-manager-chat-only.integration.test.mjs`) ; ils échouent aussi sur la branche d'origine.
+- **Affichage vérifié** dans le serveur de dev (Chromium, 1 280 px et 820 px) : accueil, consignes, skills, configuration, historique, validation, et pi-web avec son bouton Studio. Aucune erreur dans la console.
+
+### 8.5 Critères d'acceptation du lot 1
+
+| Critère | État |
+|---|---|
+| Une utilisatrice crée un pack, ajoute une skill depuis le modèle, l'enregistre, la modifie, restaure la première version, sans voir de terme Git ni de JSON. | ✅ Vérifié par l'e2e : mots interdits recherchés dans tout le texte visible à chaque étape, et par le test des messages `fr`. |
+| `git log` montre un commit par enregistrement avec le bon auteur. | ✅ Vérifié par l'e2e et par `packs.test.mjs` / `routes.test.mjs` (auteur tiré de l'en-tête du proxy et de `studio-users.json`). En conteneur, derrière Traefik : V3. |
+| Lancer `pi` en CLI dans le dossier du pack charge bien la skill. | ⏳ À vérifier en local (V1, V2). Équivalent testé en unitaire : le chargeur de ressources du SDK charge la skill sans diagnostic. |
