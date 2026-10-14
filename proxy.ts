@@ -25,6 +25,15 @@ function tooManyAttempts(retryAfterMs: number): NextResponse {
   });
 }
 
+// PI Studio (fork): STUDIO_HOME=true makes the Studio the home page. Only a
+// bare "/" moves, so session links (/?session=…) and "Back to Pi Web"
+// (/?pi-web) still open pi-web.
+function studioHomeRedirect(request: NextRequest): NextResponse | null {
+  if (process.env.STUDIO_HOME !== "true") return null;
+  if (request.nextUrl.pathname !== "/" || request.nextUrl.search !== "") return null;
+  return NextResponse.redirect(new URL("/studio", request.url));
+}
+
 export function proxy(request: NextRequest) {
   const isApiRequest = request.nextUrl.pathname === "/api"
     || request.nextUrl.pathname.startsWith("/api/");
@@ -44,7 +53,7 @@ export function proxy(request: NextRequest) {
     if (request.nextUrl.pathname === "/login") {
       return NextResponse.redirect(new URL("/", request.url));
     }
-    return NextResponse.next();
+    return studioHomeRedirect(request) ?? NextResponse.next();
   }
 
   let authenticated = isValidWebSessionToken(request.cookies.get(PI_WEB_SESSION_COOKIE)?.value, password);
@@ -68,6 +77,11 @@ export function proxy(request: NextRequest) {
   }
   if (request.nextUrl.pathname === "/api/web-auth") return NextResponse.next();
 
+  if (authenticated) {
+    const studioHome = studioHomeRedirect(request);
+    if (studioHome) return studioHome;
+  }
+
   if (!authenticated) {
     if (!isApiRequest) {
       const loginUrl = new URL("/login", request.url);
@@ -88,4 +102,5 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/", "/login", "/api/:path*"] };
+// PI Studio (fork): /studio pages get the same host and password checks as "/".
+export const config = { matcher: ["/", "/login", "/api/:path*", "/studio", "/studio/:path*"] };

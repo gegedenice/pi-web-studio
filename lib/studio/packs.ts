@@ -239,6 +239,10 @@ export async function packDetails(
       append: existsSync(resolvePackPath(id, APPEND_SYSTEM_FILE)),
       system: existsSync(resolvePackPath(id, SYSTEM_FILE)),
     },
+    instructions: {
+      agents: nonEmpty(id, AGENTS_FILE),
+      prompt: nonEmpty(id, APPEND_SYSTEM_FILE) || nonEmpty(id, SYSTEM_FILE),
+    },
     defaultModel: readDefaultModel(id),
     externalChanges: await externalChanges(id),
     skillCount: skills.total,

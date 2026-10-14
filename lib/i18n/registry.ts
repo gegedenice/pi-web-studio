@@ -1,9 +1,17 @@
 import { enLocale } from "./messages/en";
 import { zhCNLocale } from "./messages/zh-CN";
 import { zhTWLocale } from "./messages/zh-TW";
+import { frLocale } from "./messages/fr";
 import type { Locale, LocalePlugin } from "./types";
 
 const localePlugins: LocalePlugin[] = [enLocale, zhCNLocale, zhTWLocale];
+
+/**
+ * PI Studio (fork): languages that translate only part of the interface. They
+ * are registered, so a page that asks for one gets it, but pi-web's language
+ * menu and browser detection keep to the complete packages above.
+ */
+const partialLocalePlugins: LocalePlugin[] = [frLocale];
 
 /**
  * 根据标识获取已注册的语言包。
@@ -11,7 +19,13 @@ const localePlugins: LocalePlugin[] = [enLocale, zhCNLocale, zhTWLocale];
  * @returns 已注册的语言包，不存在时返回 undefined
  */
 export function getLocalePlugin(id: string): LocalePlugin | undefined {
-  return localePlugins.find((plugin) => plugin.id === id);
+  return localePlugins.find((plugin) => plugin.id === id)
+    ?? partialLocalePlugins.find((plugin) => plugin.id === id);
+}
+
+/** Every registered language, partial ones included (PI Studio fork). */
+export function getRegisteredLocales(): string[] {
+  return [...localePlugins, ...partialLocalePlugins].map((plugin) => plugin.id);
 }
 
 /** 获取当前已注册语言的稳定顺序列表。 */

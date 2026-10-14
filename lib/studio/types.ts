@@ -93,6 +93,8 @@ export interface PackDetails {
   /** Whether Pi loads the pack's `.pi` resources (project trust). */
   piLoadsProject: boolean;
   promptFiles: { append: boolean; system: boolean };
+  /** AGENTS.md and a system prompt file hold text. */
+  instructions: { agents: boolean; prompt: boolean };
   defaultModel: { provider: string; modelId: string } | null;
   externalChanges: ExternalChange[];
   skillCount: number;
