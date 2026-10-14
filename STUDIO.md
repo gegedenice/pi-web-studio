@@ -23,11 +23,11 @@ Le prototype de référence pour l'UX est « PI Pack Studio » (maquette, aucun 
 
 ### Environnement de développement de l'agent de code
 
-L'agent de code travaille **dans un environnement cloud** sur le fork GitHub, sans Docker, sans provider LLM et sans serveur MCP accessibles. L'intégratrice teste ensuite la branche en local (conteneur Docker avec Pi, pi-mcp-adapter et un provider llama.cpp).
+L'agent de code travaille **dans un environnement cloud** sur le fork GitHub, sans Docker, sans provider LLM et sans serveur MCP accessibles. L'intégratrice teste ensuite la branche en local (conteneur Docker avec Pi et un provider llama.cpp).
 
 Conséquences :
 - **Chemins configurables.** Aucun chemin en dur. Le dossier des packs est donné par `STUDIO_PACKS_DIR` (défaut `/workspace/packs`), le dossier agent Pi par `PI_CODING_AGENT_DIR` (défaut `~/.pi/agent`). Les tests utilisent des dossiers temporaires.
-- **Tout ce qui est testable sans LLM doit l'être en unitaire** : validation, parsing, écriture de fichiers, Git (sur un dépôt temporaire), résolution de chemins, lecture/écriture de `.mcp.json`.
+- **Tout ce qui est testable sans LLM doit l'être en unitaire** : validation, parsing, écriture de fichiers, Git (sur un dépôt temporaire), résolution de chemins, lecture/écriture de `.pi/mcp.json`.
 - **Ce qui exige un vrai modèle ou un vrai serveur MCP** (exécution de campagnes, inspection MCP) est isolé derrière une interface injectable, avec une implémentation factice pour les tests. Les vérifications réelles sont listées dans `STUDIO-NOTES.md`, section « À vérifier en local », pour l'intégratrice.
 - Le serveur de dev peut être lancé pour vérifier que les pages s'affichent ; ne pas tenter d'installer ni de configurer un provider LLM.
 - Travailler sur une branche dédiée, commits réguliers et lisibles ; ne jamais pousser sur `main`.
@@ -43,12 +43,13 @@ Pi charge depuis le dossier de projet (cwd) :
 | `AGENTS.md` | Contexte projet, chargé même sans confiance projet |
 | `.pi/SYSTEM.md` | Remplace le prompt système |
 | `.pi/APPEND_SYSTEM.md` | Complète le prompt système |
-| `.pi/settings.json` | Réglages projet (modèle par défaut, paquets…) |
+| `.pi/settings.json` | Réglages projet (modèle par défaut `defaultProvider`/`defaultModel`, paquets…) |
 | `.pi/skills/<nom>/SKILL.md` | Skills du projet (+ `references/`, `scripts/`, `assets/`) |
-| `.mcp.json` | Serveurs MCP du projet, lu par **pi-mcp-adapter** |
-| `.pi/mcp-adapter.json` | Surcharges projet de l'adaptateur (activer/désactiver un serveur) |
+| `.pi/mcp.json` | Serveurs MCP du projet (`mcpServers`), lus par le **MCP intégré de Pi** (Pi ≥ 0.99), géré par pi-web (Settings › MCP, `McpHost`) |
 
-**Confiance projet (piège critique).** Les ressources `.pi/*` ne sont chargées que si le projet est « trusted » (décisions stockées dans `~/.pi/agent/trust.json`, défaut via `defaultProjectTrust`). Les sessions lancées par le Studio sont non interactives : le dossier `/workspace/packs` doit être marqué de confiance au démarrage du conteneur (§7). L'adaptateur MCP a lui aussi une notion de confiance des serveurs projet (`project-server-trust`) : vérifier son comportement en session non interactive.
+Vérifié sur Pi 1.2.0 (voir `STUDIO-NOTES.md` §2). **Décision : le Studio utilise le MCP intégré de Pi, pas pi-mcp-adapter** (`.mcp.json`, `.pi/mcp-adapter.json`). L'adaptateur remplacerait le MCP intégré, désactiverait la gestion MCP de pi-web, exigerait une approbation propre des serveurs projet et se replierait sur SSE. `AGENTS.md` est aussi lu dans les dossiers parents du cwd : ne jamais en placer à la racine du dépôt des packs.
+
+**Confiance projet (piège critique).** Les ressources `.pi/*` (dont `.pi/mcp.json`) ne sont chargées que si le projet est « trusted ». pi-web ne lit que les décisions de `~/.pi/agent/trust.json` (exactes ou héritées d'un dossier parent) et **ignore `defaultProjectTrust`**. Le conteneur doit donc écrire `{"/workspace/packs": true}` (chemin réel) dans `trust.json` au démarrage (§7) : tous les packs en héritent.
 
 Avant de coder, l'agent doit **vérifier ces chemins dans la documentation de la version de Pi installée** (`pi --version`, docs `configuration.md`, `security.md`) et dans celle de pi-mcp-adapter (`docs/configuration.md`, `docs/servers.md`), et corriger ce tableau dans `STUDIO-NOTES.md` si besoin.
 
@@ -63,11 +64,10 @@ $STUDIO_PACKS_DIR/                ← un seul dépôt Git (monorepo des packs), 
 ├── .git/
 └── literature-review/            ← un pack = un projet Pi
     ├── AGENTS.md
-    ├── .mcp.json
     ├── .pi/
-    │   ├── SYSTEM.md             (ou APPEND_SYSTEM.md)
+    │   ├── APPEND_SYSTEM.md      (défaut ; SYSTEM.md en mode avancé)
     │   ├── settings.json
-    │   ├── mcp-adapter.json      (optionnel)
+    │   ├── mcp.json              (serveurs MCP du pack, lot 3)
     │   └── skills/
     │       └── openalex-search/
     │           ├── SKILL.md
@@ -160,13 +160,15 @@ Chaque lot doit être livrable et utilisable seul. Ne pas commencer un lot avant
 
 **Écrans**
 - **Accueil Studio** : liste des packs (titre, statut, version, dernière modification), bouton « Nouveau pack ». Le parcours Concevoir / Connecter / Évaluer est affiché pour le pack actif, avec un indicateur d'état par étape.
-- **Atelier du pack** (navigation latérale reprenant le prototype) : *Consignes* (AGENTS.md, SYSTEM.md), *Skills*, *MCP* (lot 3), *Tests* (lot 2), *Configuration* (modèle par défaut, métadonnées). *Providers* renvoie vers le panneau Models existant de pi-web.
+- **Atelier du pack** (navigation latérale reprenant le prototype) : *Consignes* (AGENTS.md, APPEND_SYSTEM.md ou SYSTEM.md), *Skills*, *MCP* (lot 3), *Tests* (lot 2), *Configuration* (modèle par défaut, métadonnées). *Providers* renvoie vers le panneau Models existant de pi-web.
 - **Éditeur Markdown** : édition avec aperçu, enregistrement explicite (bouton + Ctrl/Cmd+S), indicateur « modifications non enregistrées ». Réutiliser un composant d'édition déjà présent dans pi-web si possible ; sinon CodeMirror 6 en mode Markdown.
 - **Skills** : liste, création depuis un modèle, renommage, suppression (avec confirmation), import d'un `SKILL.md` collé ou téléversé. Le frontmatter est édité via un **formulaire** (nom, description) au-dessus du corps Markdown ; le YAML brut n'est visible qu'en mode avancé.
 - **Historique** : pour chaque fichier, liste des versions (auteur, date, message) et restauration d'une version antérieure (nouveau commit, jamais de réécriture d'historique).
+- **Historique du pack** : liste de tous les enregistrements du pack ; c'est là qu'on restaure une skill supprimée.
+- **Modifié en dehors du Studio** : bandeau signalant les fichiers du pack modifiés hors Studio (sessions Pi, édition manuelle), avec « Conserver » (enregistre) et « Annuler » (restaure la dernière version) ; les deux créent un nouveau commit.
 
 **Comportements**
-- Création d'un pack : dossier, `pack.json`, `AGENTS.md` et `.pi/SYSTEM.md` depuis modèles, `.pi/settings.json` minimal, commit initial.
+- Création d'un pack : dossier, `pack.json`, `AGENTS.md` et `.pi/APPEND_SYSTEM.md` depuis modèles, `.pi/settings.json` minimal, commit initial.
 - Chaque enregistrement = un commit sur le dépôt `/workspace/packs`, limité aux fichiers modifiés, auteur = identité de la personne connectée (§6), message généré (`[literature-review] Modifie skill openalex-search`) éditable optionnellement.
 - Validation à l'enregistrement d'une skill (bloquante si erreur, non bloquante si avertissement) :
   - `name` présent, identique au nom du dossier, `^[a-z0-9]+(-[a-z0-9]+)*$`, ≤ 64 caractères ;
@@ -174,6 +176,8 @@ Chaque lot doit être livrable et utilisable seul. Ne pas commencer un lot avant
   - frontmatter YAML valide et placé en tête de fichier ;
   - liens relatifs du corps (`references/…`) pointant vers des fichiers existants (avertissement).
 - Messages d'erreur en français courant, avec la correction attendue.
+- Les pages `/studio` s'affichent en français par défaut, sans changer la langue du reste de pi-web. Couleurs et composants de pi-web ; la maquette donne la structure et le parcours, pas la palette.
+- Identité inconnue de `studio-users.json` : auteur de repli et avertissement dans les journaux du serveur, jamais de refus d'enregistrer.
 
 **Critères d'acceptation**
 - Une utilisatrice crée un pack, ajoute une skill depuis le modèle, l'enregistre, la modifie, restaure la première version, sans voir de terme Git ni de JSON.
@@ -206,28 +210,29 @@ Chaque lot doit être livrable et utilisable seul. Ne pas commencer un lot avant
 
 **Écrans** (reprendre la maquette : carte « Serveur MCP », endpoint, version du protocole, authentification, bouton « Inspecter tools/list »)
 - Liste des serveurs du pack, ajout, activation/désactivation, suppression.
-- Formulaire : identifiant, URL, version de protocole (`auto` ou valeur explicite), authentification (`Aucune` | `Jeton Bearer via variable d'environnement`), `lifecycle`, `directTools` / `includeTools` / `excludeTools` en mode avancé.
-- **Inspecter** : connexion directe depuis le serveur Next.js avec le SDK MCP officiel (`@modelcontextprotocol/sdk`, transport Streamable HTTP), `initialize` puis `tools/list`, affichage des outils (nom, description, schéma replié). Indépendant de l'adaptateur : c'est un diagnostic.
+- Formulaire : identifiant, URL, description, authentification (`Aucune` | `Jeton Bearer via variable d'environnement`), exposition des outils (`direct` par défaut ; `toolExposure` par outil en mode avancé, dont `hidden` pour masquer un outil). Le MCP intégré n'a ni `protocolVersion` ni `lifecycle`.
+- **Inspecter** : réutiliser le « Test » de pi-web (`lib/mcp-test.ts`, connexion bornée via le SDK Pi), `initialize` puis `tools/list`, affichage des outils (nom, description, schéma replié). C'est un diagnostic.
 
 **Comportements**
-- Écrit dans `.mcp.json` du pack (format `mcpServers` lu par pi-mcp-adapter). Activer/désactiver passe par `.pi/mcp-adapter.json` si c'est le mécanisme de l'adaptateur (vérifier `docs/configuration.md`).
+- Écrit dans `.pi/mcp.json` du pack (format `mcpServers` du MCP intégré de Pi), en réutilisant l'écrivain de pi-web (`lib/mcp-config-file.ts` : verrou, écriture atomique). Activer/désactiver = `enabled: false` dans l'entrée.
+- **Exposition `direct` par défaut** (`"exposure": "direct"`) : le modèle cible est un petit modèle local, qui doit voir les outils déclarés comme des outils ordinaires plutôt que passer par des scripts `codemode` ou `tool_search`.
 - **Politique de transport : Streamable HTTP uniquement.** Le Studio refuse `command`/stdio et le SSE historique, avec un message explicite. (Les serveurs stdio restent configurables à la main par l'intégratrice, hors Studio.)
-- **Aucun secret dans le dépôt.** Pour l'authentification Bearer, le Studio n'enregistre que le *nom* d'une variable d'environnement ; la valeur est fournie au conteneur (`.env`). Vérifier dans `docs/auth.md` de l'adaptateur comment référencer une variable d'environnement dans les en-têtes.
-- OAuth hors périmètre : le trousseau système utilisé par défaut par l'adaptateur n'existe pas dans le conteneur.
+- **Aucun secret dans le dépôt.** Pour l'authentification Bearer, le Studio n'enregistre que le *nom* d'une variable d'environnement, sous la forme `"headers": { "Authorization": "Bearer ${NOM_VAR}" }` (syntaxe du MCP intégré, équivalente à `pi mcp add --bearer-token-env-var`) ; la valeur est fournie au conteneur (`.env`).
+- OAuth hors périmètre pour le Studio (pi-web sait le gérer dans Settings › MCP, pour l'intégratrice).
 
 **Critères d'acceptation**
-- Ajout d'un serveur Streamable HTTP via le formulaire, inspection réussie, puis une session de test du pack appelle effectivement un de ses outils via l'outil `mcp`.
+- Ajout d'un serveur Streamable HTTP via le formulaire, inspection réussie, puis une session de test du pack appelle effectivement un de ses outils, déclaré en exposition `direct` (`mcp__<serveur>__<outil>`).
 - Tentative d'ajout d'un serveur stdio refusée avec message clair.
 
 ### Lot 4 — Valider et exporter
 
-- **Valider le pack** : contrôle global affiché en liste (vert/orange/rouge) — toutes les skills valides, `AGENTS.md` et prompt système présents, `.mcp.json` valide et conforme à la politique de transport, serveurs MCP joignables (inspection), suites de tests parsables, dernière campagne sans cas `ko` (avertissement seulement).
+- **Valider le pack** : contrôle global affiché en liste (vert/orange/rouge) — toutes les skills valides, `AGENTS.md` et prompt système présents, `.pi/mcp.json` valide et conforme à la politique de transport, serveurs MCP joignables (inspection), suites de tests parsables, dernière campagne sans cas `ko` (avertissement seulement).
 - **Publier une version** : incrémente `version` dans `pack.json`, crée le tag Git `<pack-id>/v<version>`, passe le statut à `valide` si la validation est verte. Une note de version (texte libre) est demandée.
 - **Exporter** : archive `.zip` du dossier du pack à une version taguée, **sans** `.studio/runs/` (option pour les inclure) et sans aucun secret.
 
 ### Lot 5 — Agents (différé)
 
-Ne pas implémenter sans décision explicite. Candidat : extension de sous-agents (ex. `tintinweb/pi-subagents`), dont le format de définition dictera l'écran. L'« allowlist d'agents par serveur MCP » de la maquette n'est pas un mécanisme de l'adaptateur : hors périmètre.
+Ne pas implémenter sans décision explicite. Candidat : extension de sous-agents (ex. `tintinweb/pi-subagents`), dont le format de définition dictera l'écran. L'« allowlist d'agents par serveur MCP » de la maquette n'est pas un mécanisme de Pi : hors périmètre.
 
 ---
 
@@ -245,10 +250,10 @@ lib/studio/
   tests/parse.ts             parsing des suites Markdown
   tests/runner.ts            exécution des campagnes (s'appuie sur lib/ de pi-web)
   tests/transcript.ts        export Markdown des sessions
-  mcp/config.ts              lecture/écriture .mcp.json et mcp-adapter.json
-  mcp/inspect.ts             initialize + tools/list via @modelcontextprotocol/sdk
+  mcp/config.ts              lecture/écriture .pi/mcp.json (via lib/mcp-config-file.ts)
+  mcp/inspect.ts             initialize + tools/list (via lib/mcp-test.ts)
   identity.ts                identité de l'utilisatrice (en-tête du proxy)
-studio-templates/            modèles : pack, AGENTS.md, SYSTEM.md, SKILL.md, suite de tests
+studio-templates/            modèles : pack, AGENTS.md, APPEND_SYSTEM.md, SKILL.md, suite de tests
 ```
 
 **Points d'accroche autorisés dans le code amont** (à consigner dans `STUDIO-NOTES.md`) :
@@ -326,10 +331,10 @@ ENTRYPOINT ["entrypoint.sh"]
 
 ### 7.2 `docker/entrypoint.sh` (responsabilités)
 
-1. Installer `pi-mcp-adapter` dans `$PI_CODING_AGENT_DIR` s'il est absent (le répertoire agent est un volume : une installation faite au build serait masquée par le montage).
-2. Marquer `/workspace/packs` comme projet de confiance (mécanisme exact à vérifier dans la doc Pi : `trust.json` ou `defaultProjectTrust`).
+1. (Pas d'installation de pi-mcp-adapter : le Studio utilise le MCP intégré de Pi.)
+2. Marquer `/workspace/packs` comme projet de confiance : écrire la décision dans `$PI_CODING_AGENT_DIR/trust.json` (chemin réel, par exemple via `ProjectTrustStore` du SDK). pi-web ignore `defaultProjectTrust`.
 3. Initialiser `/workspace/packs` en dépôt Git s'il ne l'est pas ; configurer `safe.directory`.
-4. Lancer le serveur du fork sur `0.0.0.0:30141`, sans ouverture de navigateur.
+4. Lancer le serveur du fork sur `0.0.0.0:30141`, sans ouverture de navigateur. `STUDIO_HOME=true` redirige `/` vers `/studio`.
 
 ### 7.3 docker-compose (VPS)
 
@@ -377,18 +382,18 @@ Règles : pas de mot de passe dans l'image ; pas de socket Docker monté ; sauve
 
 ## 9. Questions ouvertes (à trancher avant ou pendant le lot concerné)
 
-1. Lot 1 : un dépôt Git unique pour tous les packs (proposé) ou un dépôt par pack ?
-2. Lot 1 : `SYSTEM.md` (remplace) ou `APPEND_SYSTEM.md` (complète) comme défaut des nouveaux packs ?
+1. ~~Lot 1 : un dépôt Git unique ou un dépôt par pack ?~~ **Tranché : un dépôt unique.**
+2. ~~Lot 1 : `SYSTEM.md` ou `APPEND_SYSTEM.md` par défaut ?~~ **Tranché : `APPEND_SYSTEM.md`** (`SYSTEM.md` en mode avancé).
 3. Lot 2 : faut-il une notation automatique (présence de DOI, sources citées) en plus du verdict humain ? Proposition : non pour le MVP.
-4. Lot 3 : mécanisme exact de pi-mcp-adapter pour un en-tête Bearer issu d'une variable d'environnement.
-5. Lot 6 : forward-auth seul, ou forward-auth + `PI_WEB_PASSWORD` (double connexion pénible pour les utilisatrices) ?
+4. ~~Lot 3 : en-tête Bearer issu d'une variable d'environnement.~~ **Tranché : MCP intégré, `"Authorization": "Bearer ${NOM_VAR}"`.**
+5. Déploiement : forward-auth seul, ou forward-auth + `PI_WEB_PASSWORD` (double connexion pénible pour les utilisatrices) ?
 
 ---
 
 ## 10. Méthode de travail attendue de l'agent de code
 
 1. Lire `AGENTS.md`, `CONTEXT.md`, `docs/` du dépôt pi-web, et regarder les captures de `docs/studio/maquette/` ; produire dans `STUDIO-NOTES.md` une carte des modules de `lib/` réutilisables (sessions, modèles, fichiers, Git, sécurité).
-2. Vérifier les chemins Pi et pi-mcp-adapter (§1) dans la documentation de la version de Pi déclarée dans `package.json` et dans le dépôt de l'adaptateur ; consigner les écarts, et ce qui ne peut être vérifié qu'en local.
+2. Vérifier les chemins Pi et MCP (§1) dans la documentation de la version de Pi déclarée dans `package.json` et dans le dépôt de l'adaptateur ; consigner les écarts, et ce qui ne peut être vérifié qu'en local.
 3. Proposer le plan du lot en cours (fichiers créés/modifiés) avant de coder.
 4. Livrer lot par lot, critères d'acceptation vérifiés et notés dans `STUDIO-NOTES.md`.
-5. Ne jamais exécuter `git push`, ni modifier l'historique du dépôt de packs.
+5. Pousser régulièrement la branche de travail du fork (`studio`) : c'est attendu. Ne jamais pousser sur `main`, ne jamais forcer un push. Le Studio lui-même n'exécute jamais `git push` sur le dépôt des packs et n'en modifie jamais l'historique.

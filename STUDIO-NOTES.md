@@ -1,6 +1,30 @@
 # STUDIO-NOTES.md — PI Studio, notes de l'agent de code
 
-Journal de travail associé à [STUDIO.md](STUDIO.md). Session 1 (2026-10-14) : lecture et cadrage, **aucun fichier de code modifié**.
+Journal de travail associé à [STUDIO.md](STUDIO.md). Session 1 (2026-10-14) : lecture et cadrage. Session 2 : décisions ci-dessous, puis lot 1.
+
+## 0. Décisions (relecture du 2026-10-14)
+
+| # | Décision |
+|---|---|
+| Q1 | Un seul dépôt Git pour tous les packs. |
+| Q2 | `APPEND_SYSTEM.md` par défaut ; `SYSTEM.md` en mode avancé. |
+| Q3 | Pousser la branche `studio` est attendu. Jamais de push sur `main`, jamais de push forcé. « Pas de push » vaut pour le dépôt des packs (§10.5 de STUDIO.md corrigé). |
+| Q4 | **MCP intégré de Pi (`.pi/mcp.json`)**, pas pi-mcp-adapter. Serveurs en exposition **`direct`** (modèle cible : petit modèle local). §1 et lot 3 de STUDIO.md mis à jour. Rien à coder pour le MCP au lot 1. |
+| Q5 | « Lot 6 » = déploiement. `PI_WEB_PASSWORD` gardé tel quel. |
+| Q6 | Identité inconnue : auteur de repli + avertissement dans les journaux du serveur, jamais de refus. |
+| Q7 | Traduction du Studio seulement. `/studio` en français par défaut, sans changer la langue du reste de pi-web. |
+| Q8 | Zone de texte avec aperçu, sans numéros de ligne ni CodeMirror. Tab et Ctrl/Cmd+S gérés. |
+| Q9 | Couleurs et composants de pi-web ; de la maquette, la structure et le parcours. |
+| Q10 | Bouton dans la barre latérale. `STUDIO_HOME=true` redirige `/` vers `/studio`. |
+| Q11 | `git init` idempotent avec un `.gitignore` minimal. |
+| Q12 | Import d'un `SKILL.md` seul (collé ou téléversé). |
+| Q13 | Agents et Exporter masqués ; « Valider » affiche la liste de validation. |
+| Q14 | Historique au niveau du pack inclus au lot 1 (restauration d'une skill supprimée). |
+| Q15 | Bandeau « Modifié en dehors du Studio » avec « Conserver » (commit) et « Annuler » (restauration), au lot 1. Les deux créent un nouveau commit. |
+| Q16 | Modèle par défaut du pack dans `.pi/settings.json`. V8 conservé. |
+| M1–M6 | Modifications amont acceptées. |
+
+**Note pour le lot 2 (rien à coder au lot 1).** Les sessions de test auront un jeu d'outils restreint par défaut : `read` et les outils MCP, sans `write`, `edit` ni `bash`. Le pack pourra l'élargir (réglage à définir au lot 2). `read` reste indispensable : sans `read` ni `bash`, Pi n'ajoute pas les skills au prompt système (écart E7).
 
 Sources lues : `STUDIO.md`, `AGENTS.md`, `CONTEXT.md`, `CONTRIBUTING.md`, `docs/` (i18n, release, terminal, worktrees, `docs/agents/*`, ADR 0001 à 0006), les six captures de `docs/studio/maquette/`, le code de `lib/`, `proxy.ts`, `app/` et `hooks/useI18n.tsx`.
 
@@ -397,8 +421,13 @@ D'accord ?
 
 Pour les lots suivants, à confirmer dès maintenant si possible :
 
-- **V6 (lot 3, si l'adaptateur est retenu)** : `pi install npm:pi-mcp-adapter`, puis vérifier que `~/.pi/agent/settings.json` a reçu `-builtin:mcp`. Dans une session pi-web d'un pack contenant un `.mcp.json`, observer si l'adaptateur affiche un dialogue d'approbation ou ignore le serveur. Recommencer avec `"settings": { "projectServers": "allow" }` dans `~/.pi/agent/mcp-adapter.json`.
-- **V7 (lot 3)** : serveur Streamable HTTP avec `"auth": "bearer", "bearerTokenEnv": "X"` (adaptateur) et avec `"headers": { "Authorization": "Bearer ${X}" }` (intégré). Vérifier que la variable fournie par `.env` est bien envoyée.
+- **V6 (lot 3) — appel d'outil MCP en exposition `direct` avec Qwen3-VL-8B.**
+  1. Dans un pack de confiance, écrire `.pi/mcp.json` : `{ "mcpServers": { "demo": { "url": "https://…/mcp", "exposure": "direct" } } }`. Vérifier que `~/.pi/agent/settings.json` ne contient pas `-builtin:mcp` et que pi-mcp-adapter n'est pas installé.
+  2. Settings › MCP de pi-web : le serveur apparaît dans le groupe Project, « Test » réussit et liste ses outils.
+  3. Nouvelle session pi-web dans le pack, modèle `Qwen3-VL-8B-Instruct` (provider llama.cpp), outils `read` seulement. Demander une tâche qui exige un outil du serveur.
+  4. Attendu : un appel direct de l'outil `mcp__demo__<outil>` dans le transcript (pas de `codemode` ni `tool_search`), puis une réponse qui utilise son résultat. Noter le nombre d'outils déclarés et si le modèle choisit le bon.
+  5. Même essai en CLI : `cd <pack> && pi --model <provider>/<modèle> --tools read,'mcp__demo__*'`.
+- **V7 (lot 3)** : serveur avec `"headers": { "Authorization": "Bearer ${X}" }` et `X` fourni par `.env` : la connexion réussit, et la valeur n'apparaît ni dans `.pi/mcp.json` ni dans les journaux.
 - **V8 (lots 1 et 2)** : `curl '/api/models?cwd=/workspace/packs/<pack>'` doit renvoyer le `defaultModel` du pack et non celui du global (Q16).
 
 ---
@@ -406,4 +435,5 @@ Pour les lots suivants, à confirmer dès maintenant si possible :
 ## 7. Journal
 
 - 2026-10-14 : ajout de `docs/studio/maquette/` (6 captures). Seul ce dossier venait de l'archive : le reste de `docs/` existait déjà dans le dépôt.
-- 2026-10-14 : rédaction de ce fichier. Aucun code modifié. **En attente de relecture avant le lot 1.**
+- 2026-10-14 : rédaction de ce fichier. Aucun code modifié.
+- 2026-10-14 : notes validées ; décisions consignées au §0 ; STUDIO.md mis à jour (§1, lot 3, §7.2, §9, §10.5).
