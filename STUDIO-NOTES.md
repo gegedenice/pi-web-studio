@@ -409,6 +409,8 @@ D'accord ?
 
 ## 6. À vérifier en local (intégratrice)
 
+La procédure pas à pas (conteneur, provider, commandes de constat) est dans [docs/studio/TEST-LOCAL.md](docs/studio/TEST-LOCAL.md) ; le conteneur est décrit au §9.
+
 À compléter à chaque lot. Pour le lot 1 :
 
 - **V1 — La skill est chargée par le CLI.**
@@ -452,6 +454,7 @@ Ajouts du lot 1 :
 - 2026-10-14 : rédaction de ce fichier. Aucun code modifié.
 - 2026-10-14 : notes validées ; décisions consignées au §0 ; STUDIO.md mis à jour (§1, lot 3, §7.2, §9, §10.5).
 - 2026-10-14 : lot 1 livré (§8). Critères 1 et 2 vérifiés ; critère 3 et V1–V12 à vérifier en local.
+- 2026-10-15 : conteneur de test local et procédure TEST-LOCAL.md (§9).
 
 ---
 
@@ -515,3 +518,47 @@ Rien d'autre n'est modifié dans l'amont. La route `api/studio/packs/<pack>/mode
 | Une utilisatrice crée un pack, ajoute une skill depuis le modèle, l'enregistre, la modifie, restaure la première version, sans voir de terme Git ni de JSON. | ✅ Vérifié par l'e2e : mots interdits recherchés dans tout le texte visible à chaque étape, et par le test des messages `fr`. |
 | `git log` montre un commit par enregistrement avec le bon auteur. | ✅ Vérifié par l'e2e et par `packs.test.mjs` / `routes.test.mjs` (auteur tiré de l'en-tête du proxy et de `studio-users.json`). En conteneur, derrière Traefik : V3. |
 | Lancer `pi` en CLI dans le dossier du pack charge bien la skill. | ⏳ À vérifier en local (V1, V2). Équivalent testé en unitaire : le chargeur de ressources du SDK charge la skill sans diagnostic. |
+
+---
+
+## 9. Conteneur de test local (2026-10-15)
+
+### 9.1 Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `docker/Dockerfile` | `node:24-bookworm-slim`, outils système du §7.1, Pi CLI épinglé (`PI_VERSION=1.2.0`, même version que le SDK embarqué), fork construit depuis les sources (`npm ci` puis `npm run build`). Aucun secret : mot de passe et identité viennent de l'environnement. uv n'est pas installé : il ne servait qu'aux serveurs MCP stdio, hors périmètre. |
+| `docker/entrypoint.sh` | Idempotent : crée les dossiers, écrit la confiance (`lib/studio/trust-packs.mjs`), ajoute `safe.directory`, crée le dépôt des packs avec son `.gitignore` et une première version, puis lance `bin/pi-web.js --hostname 0.0.0.0 --port 30141 --no-open`. Le lanceur de pi-web renouvelle au passage les secrets de prévisualisation de Next. Des arguments éventuels remplacent le serveur, par exemple `docker compose run --rm pi-studio bash`. |
+| `lib/studio/trust-packs.mjs` | Écrit `{"/workspace/packs": true}` dans `trust.json` avec le `ProjectTrustStore` du SDK : chemin réel, autres décisions conservées, rien de réécrit si la décision existe déjà. Un `trust.json` illisible arrête le démarrage au lieu d'être écrasé. |
+| `compose.dev.yml` | Volumes `./dev/workspace` et `./dev/pi-agent`, `STUDIO_HOME=true`, `extra_hosts: host.docker.internal:host-gateway`, port publié sur `127.0.0.1` seulement, `.env` facultatif, `docker/studio-users.dev.json` monté en lecture seule. |
+| `.env.example` | `PI_WEB_PASSWORD`, `STUDIO_DEFAULT_USER`, `LLAMA_API_KEY`. `.gitignore` laisse passer ce seul fichier, et ignore `/dev/`. |
+| `docker/models.example.json` | Provider `llamacpp-hote` vers `http://host.docker.internal:8080/v1` (API `openai-completions`). |
+| `.gitattributes`, `.dockerignore` | Fins de ligne LF pour `*.sh` sur une copie Windows (le Dockerfile retire aussi les `\r` par sécurité) ; contexte de build sans `node_modules`, `.next`, `.git`, `dev`, `.env`. |
+| `docs/studio/TEST-LOCAL.md` | Procédure pour une personne non développeuse sous Windows : V1, V2, V5, V8, V9 à V12, et V3/V4 au déploiement. |
+
+### 9.2 Vérifié dans le cloud
+
+- **Tests unitaires** (`lib/studio/container-setup.test.mjs`, 5 tests) :
+  - écriture de la confiance (chemin réel, idempotence, autres décisions conservées, refus remplacé, fichier illisible non écrasé) ;
+  - entrypoint lancé deux fois sur des dossiers vides (confiance, dépôt, première version unique, `.gitignore` identique à celui du Studio, `safe.directory` présent une seule fois) ;
+  - entrypoint sur un dépôt existant, laissé intact.
+
+  Les tests de l'entrypoint sont sautés sous Windows (bash requis).
+- **Build de l'image** : réussi avec une variante du Dockerfile, propre au cloud et non commitée. L'étape `apt-get` n'a pas pu y être exécutée : la politique réseau de l'environnement cloud refuse `deb.debian.org` (403 du proxy). La variante part donc de `node:24-bookworm` (git, python3 et outils de compilation déjà présents), sans l'étape apt, avec le certificat du proxy du cloud. Tout le reste du Dockerfile a été exécuté tel quel : Pi CLI 1.2.0, `npm ci`, `npm run build`, entrypoint. **L'étape apt du Dockerfile reste à constater au premier build local.**
+- **Conteneur lancé par `compose.dev.yml`** :
+  - entrypoint complet ;
+  - `trust.json` correct, et Pi charge les ressources du pack (`pi-check` : `projectResourcesLoaded: true`, skill listée) ;
+  - V9 : `/` redirige vers `/studio`, puis vers la page de connexion quand un mot de passe est défini, et `/?pi-web` reste accessible ;
+  - V5 : trois puis quatre versions, avec l'auteur de `studio-users.dev.json` ;
+  - redémarrage idempotent ;
+  - `node-pty` se charge ;
+  - aucune variable sensible dans l'image.
+- **Avec un faux llama.cpp** (petit serveur compatible OpenAI sur l'hôte, joint par `host.docker.internal`) :
+  - `pi --list-models` voit le modèle de l'exemple ;
+  - V1 : `pi -p` lancé dans le pack utilise le modèle par défaut du pack et reçoit la skill dans son prompt système ;
+  - V8 : la route des modèles renvoie le modèle par défaut du pack.
+
+### 9.3 Constat
+
+Un `models.json` **créé à la main** pendant que le serveur tourne n'est pas pris en compte par la liste des modèles de pi-web, même après l'expiration de son cache de 60 s. Il l'est après un redémarrage, ou s'il est modifié par Réglages › Models, qui invalide ce cache. Le CLI le lit immédiatement. La procédure demande donc un `docker compose … restart` après la copie de l'exemple. Comportement de pi-web, sans lien avec le Studio : je n'ai pas cherché plus loin.
+

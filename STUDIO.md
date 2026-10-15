@@ -298,6 +298,8 @@ Toute autre modification du code amont doit être justifiée dans `STUDIO-NOTES.
 
 ### 7.1 Dockerfile (point de départ, à adapter pour builder le fork)
 
+Réalisation : `docker/Dockerfile`, `docker/entrypoint.sh`, `compose.dev.yml` (test local) ; procédure dans `docs/studio/TEST-LOCAL.md`, détails dans `STUDIO-NOTES.md` §9.
+
 ```dockerfile
 FROM node:24-bookworm-slim
 
