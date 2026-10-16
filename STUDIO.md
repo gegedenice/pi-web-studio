@@ -336,7 +336,7 @@ ENTRYPOINT ["entrypoint.sh"]
 1. (Pas d'installation de pi-mcp-adapter : le Studio utilise le MCP intégré de Pi.)
 2. Marquer `/workspace/packs` comme projet de confiance : écrire la décision dans `$PI_CODING_AGENT_DIR/trust.json` (chemin réel, par exemple via `ProjectTrustStore` du SDK). pi-web ignore `defaultProjectTrust`.
 3. Initialiser `/workspace/packs` en dépôt Git s'il ne l'est pas ; configurer `safe.directory`.
-4. Lancer le serveur du fork sur `0.0.0.0:30141`, sans ouverture de navigateur. `STUDIO_HOME=true` redirige `/` vers `/studio`.
+4. Lancer le serveur du fork sur `0.0.0.0:30141`, sans ouverture de navigateur. `STUDIO_HOME=true` : `/` ouvre le dernier endroit utilisé, le Studio par défaut, ou Pi Web après « Retour à Pi Web » (cookie `pi_studio_place`).
 
 ### 7.3 docker-compose (VPS)
 

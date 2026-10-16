@@ -15,7 +15,7 @@ Journal de travail associé à [STUDIO.md](STUDIO.md). Session 1 (2026-10-14) : 
 | Q7 | Traduction du Studio seulement. `/studio` en français par défaut, sans changer la langue du reste de pi-web. |
 | Q8 | Zone de texte avec aperçu, sans numéros de ligne ni CodeMirror. Tab et Ctrl/Cmd+S gérés. |
 | Q9 | Couleurs et composants de pi-web ; de la maquette, la structure et le parcours. |
-| Q10 | Bouton dans la barre latérale. `STUDIO_HOME=true` redirige `/` vers `/studio`. |
+| Q10 | Bouton dans la barre latérale. `STUDIO_HOME=true` : `/` ouvre le Studio, ou Pi Web après « Retour à Pi Web » (correctif du 2026-10-16, §10). |
 | Q11 | `git init` idempotent avec un `.gitignore` minimal. |
 | Q12 | Import d'un `SKILL.md` seul (collé ou téléversé). |
 | Q13 | Agents et Exporter masqués ; « Valider » affiche la liste de validation. |
@@ -216,7 +216,7 @@ Voir la section « À vérifier en local » (§6) : V1 à V8.
 
 | # | Fichier | Modification | Justification |
 |---|---|---|---|
-| M1 | `proxy.ts` | Ajouter `"/studio/:path*"` (et `"/studio"`) au `matcher` | **Hors liste autorisée, indispensable.** Le matcher ne couvre que `/`, `/login` et `/api/*`. Sans cet ajout, les pages `/studio` échappent au mot de passe et au contrôle d'hôte. Les données passent par `/api/studio`, qui est protégé, mais la page de connexion doit s'afficher. Diff d'une ligne. |
+| M1 | `proxy.ts` | Matcher étendu à `/studio` et `/studio/:path*` (mot de passe et contrôle d'hôte, comme `/`). Les deux sorties `NextResponse.next()` des pages authentifiées passent par `withStudioHome()` (`lib/studio/home.ts`) quand `STUDIO_HOME=true` (§10). |
 | M2 | `lib/i18n/types.ts` | `Locale` reçoit `"fr"` | Point d'accroche autorisé (locale `fr`), conforme à `docs/i18n.md` § 3. |
 | M3 | `lib/i18n/registry.ts` | Enregistrer `frLocale`, `resolveBrowserLocale` : `fr` et `fr-*` → `fr`, fusion des messages Studio (`studioMessages.fr` et `.en`) dans les packs `fr` et `en` | Point d'accroche autorisé. La fusion évite de toucher `en.ts`, `zh-CN.ts` et `zh-TW.ts`, que l'amont modifie souvent. Les autres langues retombent sur l'anglais. |
 | M4 | `hooks/useI18n.tsx` | `readInitialLocale()` : la liste en dur est remplacée par `getLocalePlugin(stored)` | Sans ce changement, la locale `fr` enregistrée est ignorée au rechargement. Ce serait aussi le correctif à proposer à l'amont. |
@@ -436,7 +436,7 @@ Pour les lots suivants, à confirmer dès maintenant si possible :
 
 Ajouts du lot 1 :
 
-- **V9 — `STUDIO_HOME=true`.** Avec la variable, `/` mène à `/studio` (après la connexion si `PI_WEB_PASSWORD` est défini). « Retour à Pi Web » ouvre pi-web, et les liens de session (`/?session=…`) aussi.
+- **V9 — `STUDIO_HOME=true`.** `/` ouvre le Studio, puis Pi Web après « Retour à Pi Web », y compris quand on recharge ou retape l'adresse, et de nouveau le Studio après le bouton « π Studio ». Le passage par la connexion a lieu d'abord si `PI_WEB_PASSWORD` est défini. Les liens de session (`/?session=…`) ouvrent toujours Pi Web.
 - **V10 — Parcours complet dans le conteneur**, avec le vrai volume et deux comptes derrière Traefik :
   1. Créer un pack, une skill, l'enregistrer.
   2. Vérifier que le bandeau « Pi ne chargera pas… » n'apparaît **pas** (confiance héritée, V2).
@@ -455,6 +455,7 @@ Ajouts du lot 1 :
 - 2026-10-14 : notes validées ; décisions consignées au §0 ; STUDIO.md mis à jour (§1, lot 3, §7.2, §9, §10.5).
 - 2026-10-14 : lot 1 livré (§8). Critères 1 et 2 vérifiés ; critère 3 et V1–V12 à vérifier en local.
 - 2026-10-15 : conteneur de test local et procédure TEST-LOCAL.md (§9).
+- 2026-10-16 : retour du test local (PR, commentaire du 16/10) : correctif de `STUDIO_HOME`, et constat fiable des skills pour V1 (§10).
 
 ---
 
@@ -562,3 +563,38 @@ Rien d'autre n'est modifié dans l'amont. La route `api/studio/packs/<pack>/mode
 
 Un `models.json` **créé à la main** pendant que le serveur tourne n'est pas pris en compte par la liste des modèles de pi-web, même après l'expiration de son cache de 60 s. Il l'est après un redémarrage, ou s'il est modifié par Réglages › Models, qui invalide ce cache. Le CLI le lit immédiatement. La procédure demande donc un `docker compose … restart` après la copie de l'exemple. Comportement de pi-web, sans lien avec le Studio : je n'ai pas cherché plus loin.
 
+---
+
+## 10. Retour du test local (2026-10-16)
+
+Source : commentaire de l'intégratrice sur la PR. Le test a été mené avec un llama.cpp distant (`https://vlm.smartbiblia.fr/v1`, `compat` sans rôle développeur ni effort de raisonnement), et non sur l'hôte.
+
+| Vérification | Résultat | Suite donnée |
+|---|---|---|
+| V2 | ✅ | — |
+| V5 | ✅ | — |
+| V1, choix du modèle | ✅ | — |
+| V1, reconnaissance des skills | ⚠️ Le pack `literature-review` n'avait aucune skill, et `pi -p "Quelles skills as-tu à disposition ?"` en a cité cinq. | Pas un défaut du Studio : le modèle a inventé la liste. Sans skill, Pi n'ajoute aucun bloc de skills au prompt système : le faux llama.cpp du §9.2, qui renvoie les noms reçus dans le prompt, n'en voit aucun dans ce cas. La procédure faisait reposer le constat sur une réponse du modèle : c'était une erreur de ma part. **Correctif** : `lib/studio/list-skills.mjs` interroge le chargeur de ressources du SDK (celui du CLI), avec la confiance lue dans `trust.json`, sans modèle. TEST-LOCAL.md V1 le place en premier, puis la complétion `/skill:` dans le CLI ; la question au modèle ne reste qu'en complément (`/skill:<nom>`). |
+| V8, V9 | ❌ « Retour à Pi Web » ne marchait plus : on revenait sans cesse sur `/studio`. | **Défaut du Studio**, sans lien avec le choix du modèle. Pi-web réécrit lui-même son adresse en `/` (`router.replace`, par exemple `components/AppShell.tsx:837`) et charge cette adresse par une requête RSC : la redirection de `STUDIO_HOME`, qui visait tout `/` sans paramètre, la renvoyait au Studio. Le e2e et le test du conteneur ne vérifiaient que le premier clic. **Correctif** ci-dessous. |
+
+### 10.1 Correctif de `STUDIO_HOME`
+
+`lib/studio/home.ts`, `withStudioHome()`, appelé par `proxy.ts` à la place de l'ancienne redirection :
+
+- `/?pi-web` (« Retour à Pi Web ») mémorise l'endroit dans un cookie `pi_studio_place=pi-web` (HttpOnly, SameSite=Lax, un an) ;
+- toute page `/studio…` efface ce cookie ;
+- `/` sans paramètre ne redirige vers `/studio` que si ce cookie est absent, et jamais pour une requête RSC (en-têtes `RSC`, `Next-Router-State-Tree`, paramètre `_rsc`).
+
+Résultat : `/` ouvre le dernier endroit utilisé. Dans Pi Web, recharger la page ou retaper l'adresse laisse dans Pi Web. Le diff de `proxy.ts` par rapport à l'amont se réduit : il n'y a plus de fonction locale, seulement deux appels.
+
+Vérifications :
+
+- `lib/studio/proxy.test.mjs` : redirection par défaut, cookie posé puis effacé, requêtes RSC non redirigées ; le scénario du retour de test est rejoué pas à pas ;
+- `lib/web-auth-proxy.test.mjs` de pi-web passe inchangé ;
+- dans un navigateur (serveur de dev, `STUDIO_HOME=true`) : `/` → `/studio` → « Retour à Pi Web » → réécriture de l'adresse par pi-web → `F5` → adresse retapée (on reste dans Pi Web à chaque étape) → « π Studio » → adresse retapée (Studio).
+
+### 10.2 Autres ajustements de TEST-LOCAL.md
+
+- Un llama.cpp distant est indiqué comme une option : seule la `baseUrl` change.
+- Les commandes ne supposent plus le nom de provider `llamacpp-hote`.
+- V9 décrit le nouveau comportement et les étapes qui le constatent.

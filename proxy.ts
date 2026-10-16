@@ -14,6 +14,7 @@ import {
   isWebPasswordEnabled,
   PI_WEB_SESSION_COOKIE,
 } from "@/lib/web-auth";
+import { withStudioHome } from "@/lib/studio/home";
 
 function tooManyAttempts(retryAfterMs: number): NextResponse {
   return new NextResponse("Too many failed attempts", {
@@ -23,15 +24,6 @@ function tooManyAttempts(retryAfterMs: number): NextResponse {
       "Retry-After": String(retryAfterSeconds(retryAfterMs)),
     },
   });
-}
-
-// PI Studio (fork): STUDIO_HOME=true makes the Studio the home page. Only a
-// bare "/" moves, so session links (/?session=…) and "Back to Pi Web"
-// (/?pi-web) still open pi-web.
-function studioHomeRedirect(request: NextRequest): NextResponse | null {
-  if (process.env.STUDIO_HOME !== "true") return null;
-  if (request.nextUrl.pathname !== "/" || request.nextUrl.search !== "") return null;
-  return NextResponse.redirect(new URL("/studio", request.url));
 }
 
 export function proxy(request: NextRequest) {
@@ -53,7 +45,8 @@ export function proxy(request: NextRequest) {
     if (request.nextUrl.pathname === "/login") {
       return NextResponse.redirect(new URL("/", request.url));
     }
-    return studioHomeRedirect(request) ?? NextResponse.next();
+    // PI Studio (fork): STUDIO_HOME=true, see lib/studio/home.ts.
+    return withStudioHome(request, () => NextResponse.next());
   }
 
   let authenticated = isValidWebSessionToken(request.cookies.get(PI_WEB_SESSION_COOKIE)?.value, password);
@@ -77,11 +70,6 @@ export function proxy(request: NextRequest) {
   }
   if (request.nextUrl.pathname === "/api/web-auth") return NextResponse.next();
 
-  if (authenticated) {
-    const studioHome = studioHomeRedirect(request);
-    if (studioHome) return studioHome;
-  }
-
   if (!authenticated) {
     if (!isApiRequest) {
       const loginUrl = new URL("/login", request.url);
@@ -99,7 +87,8 @@ export function proxy(request: NextRequest) {
     });
   }
 
-  return NextResponse.next();
+  // PI Studio (fork): STUDIO_HOME=true, see lib/studio/home.ts.
+  return withStudioHome(request, () => NextResponse.next());
 }
 
 // PI Studio (fork): /studio pages get the same host and password checks as "/".

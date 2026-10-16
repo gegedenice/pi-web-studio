@@ -100,6 +100,8 @@ Les packs et les réglages de Pi sont conservés sur votre disque, dans `dev\wor
 
    `host.docker.internal` désigne votre ordinateur vu depuis le conteneur. `apiKey` est obligatoire pour Pi, même si llama.cpp ne demande pas de clé : toute valeur convient. Si llama.cpp est lancé avec `--api-key`, mettez la clé dans `.env` (`LLAMA_API_KEY=…`) et écrivez `"apiKey": "$LLAMA_API_KEY"`.
 
+   Un llama.cpp distant convient aussi : mettez son adresse dans `baseUrl` (par exemple `https://vlm.example.fr/v1`), sans rien changer d'autre. La suite de la procédure reste valable ; remplacez seulement `llamacpp-hote` par le nom de provider que vous avez choisi.
+
 3. Vérifiez que le conteneur joint bien llama.cpp :
 
    ```powershell
@@ -160,21 +162,43 @@ Faites-les dans cet ordre. Chacune indique l'**action**, le **résultat attendu*
 
 ### V1 — Pi en ligne de commande charge la skill du pack
 
+**À savoir avant de commencer.** Ne demandez pas au modèle « quelles skills as-tu ? » pour faire ce constat : un petit modèle invente volontiers une liste plausible, même quand le pack n'en a aucune. Le constat se fait avec Pi lui-même, sans modèle (commandes 1 et 2). La commande 3, avec le modèle, n'est qu'un complément.
+
 - **Action** :
-  1. Dans le Studio, ouvrez Configuration, choisissez le modèle `Qwen3-VL-8B…` comme modèle par défaut et enregistrez.
-  2. Lancez la commande ci-dessous.
+  1. Dans le Studio, ajoutez au pack au moins une skill, par exemple `recherche-openalex` (V5), et enregistrez-la.
+  2. Dans Configuration, choisissez le modèle `Qwen3-VL-8B…` comme modèle par défaut, puis enregistrez.
 - **Attendu** :
   - `pi --version` affiche `1.2.0` ;
-  - la réponse du modèle cite `recherche-openalex` ;
-  - aucun message ne parle de confiance (« trust »).
-- **Commandes** :
+  - commande 1 : « Confiance : oui », puis **exactement** les skills créées dans le Studio, ni plus ni moins ;
+  - commande 2 : en tapant `/skill:` dans Pi, la liste proposée contient ces mêmes skills ;
+  - commande 3 : la réponse suit les instructions de la skill nommée.
+- **Commandes** (remplacez `essai` par l'identifiant de votre pack) :
 
   ```powershell
   studio pi --version
-  docker compose -f compose.dev.yml exec -w /workspace/packs/essai pi-studio pi -p "Quelles skills as-tu à disposition ? Donne seulement leurs noms."
   ```
 
-  Pour la variante interactive, lancez `docker compose -f compose.dev.yml exec -w /workspace/packs/essai pi-studio pi`. Tapez `/skill:` : `recherche-openalex` doit être proposée. Quittez avec `Ctrl+C` deux fois.
+  1. La liste des skills que Pi charge dans le pack, calculée par le chargeur de Pi lui-même :
+
+     ```powershell
+     studio node /opt/pi-studio/lib/studio/list-skills.mjs /workspace/packs/essai
+     ```
+
+     Pour un pack sans skill, la commande affiche « Skills chargées par Pi : 0 (aucune) ».
+
+  2. Le même constat dans l'interface de Pi en ligne de commande :
+
+     ```powershell
+     docker compose -f compose.dev.yml exec -w /workspace/packs/essai pi-studio pi
+     ```
+
+     Tapez `/skill:` sans valider : Pi propose les skills du pack. Quittez avec `Ctrl+C` deux fois.
+
+  3. En complément, avec le modèle : la commande `/skill:<nom>` fait lire la skill au modèle avant la question.
+
+     ```powershell
+     docker compose -f compose.dev.yml exec -w /workspace/packs/essai pi-studio pi -p "/skill:recherche-openalex Résume en une phrase ce que cette skill te demande de faire."
+     ```
 
 ### V8 — Le modèle par défaut du pack est bien utilisé
 
@@ -186,27 +210,30 @@ Faites-les dans cet ordre. Chacune indique l'**action**, le **résultat attendu*
   studio curl -s http://localhost:30141/api/studio/packs/essai/models
   ```
 
-  La réponse doit contenir `"defaultModel":{"provider":"llamacpp-hote","modelId":"…"}`.
+  La réponse doit contenir `"defaultModel":{"provider":"llamacpp-hote","modelId":"…"}`, avec votre nom de provider s'il est différent.
   Une fois le mot de passe ajouté (V9), écrivez `curl -s -u pi:VOTRE_MOT_DE_PASSE …`.
 
 ### V9 — Le Studio comme page d'accueil, et le mot de passe
 
+<http://localhost:30141> ouvre **le dernier endroit utilisé** : le Studio par défaut. Après « Retour à Pi Web », c'est Pi Web, jusqu'à ce que vous rouvriez le Studio.
+
 - **Action** :
   1. Ouvrez <http://localhost:30141>.
-  2. Dans le Studio, cliquez sur « Retour à Pi Web », puis revenez au Studio par le bouton « π Studio » de la barre latérale.
-  3. Mettez un mot de passe dans `.env` (`PI_WEB_PASSWORD=…`), puis redémarrez avec `docker compose -f compose.dev.yml up -d`.
-  4. Rouvrez <http://localhost:30141>.
+  2. Dans le Studio, cliquez sur « Retour à Pi Web ». Utilisez Pi Web normalement : ouvrez un projet, démarrez une session, rechargez la page (`F5`), puis tapez à nouveau <http://localhost:30141>.
+  3. Revenez au Studio par le bouton « π Studio » de la barre latérale, puis tapez à nouveau <http://localhost:30141>.
+  4. Mettez un mot de passe dans `.env` (`PI_WEB_PASSWORD=…`), redémarrez avec `docker compose -f compose.dev.yml up -d`, puis rouvrez <http://localhost:30141>.
 - **Attendu** :
-  - à l'étape 1, l'adresse devient `/studio` ;
-  - à l'étape 2, « Retour à Pi Web » ouvre bien Pi Web (et non le Studio) ;
-  - à l'étape 4, la page de connexion s'affiche d'abord, puis le Studio.
+  - étape 1 : l'adresse devient `/studio` ;
+  - étape 2 : vous restez dans Pi Web à chaque action, y compris après `F5` et en retapant l'adresse ;
+  - étape 3 : le Studio s'ouvre, puis l'adresse mène de nouveau au Studio ;
+  - étape 4 : la page de connexion s'affiche d'abord, puis le dernier endroit utilisé.
 - **Commande** (sans mot de passe) :
 
   ```powershell
   curl.exe -s -o NUL -w "%{http_code} %{redirect_url}" http://localhost:30141/
   ```
 
-  **Attendu** : `307 http://localhost:30141/studio`.
+  **Attendu** : `307 http://localhost:30141/studio`. Cette commande n'a pas l'historique du navigateur : elle répond toujours Studio.
 
 ### V10 — Le parcours complet
 
