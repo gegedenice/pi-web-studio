@@ -1,0 +1,11 @@
+# Build context of docker/Dockerfile: sources only.
+.git
+node_modules
+.next
+dev
+test-results
+coverage
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
