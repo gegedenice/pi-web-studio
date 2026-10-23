@@ -8,6 +8,8 @@ import { isSlug } from "./slug";
 export { isSlug, SLUG_MAX_LENGTH, SLUG_PATTERN } from "./slug";
 
 export const SKILLS_DIR = ".pi/skills";
+export const TESTS_DIR = "tests";
+export const RUNS_DIR = ".studio/runs";
 export const PACK_META_FILE = ".studio/pack.json";
 export const APPEND_SYSTEM_FILE = ".pi/APPEND_SYSTEM.md";
 export const SYSTEM_FILE = ".pi/SYSTEM.md";
@@ -101,6 +103,14 @@ export function packRelative(packId: string, repoRelPath: string): string | null
 
 export function skillDirRel(name: string): string {
   return `${SKILLS_DIR}/${name}`;
+}
+
+export function suiteFileRel(name: string): string {
+  return `${TESTS_DIR}/${name}.md`;
+}
+
+export function runDirRel(runId: string): string {
+  return `${RUNS_DIR}/${runId}`;
 }
 
 export function skillFileRel(name: string): string {

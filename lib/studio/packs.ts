@@ -16,13 +16,22 @@ import {
   packsRoot,
   repoPath,
   resolvePackPath,
+  runDirRel,
   SETTINGS_FILE,
   SYSTEM_FILE,
 } from "./paths";
 import { renderPackTemplate } from "./templates";
-import { PACK_STATUSES, type ExternalChange, type PackDetails, type PackJourney, type PackMeta, type PackStatus, type PackSummary } from "./types";
+import { activeRunIds } from "./tests/active-runs";
+import { PACK_STATUSES, TEST_TOOL_NAMES, type ExternalChange, type PackDetails, type PackJourney, type PackMeta, type PackStatus, type PackSummary } from "./types";
 
 export const TITLE_MAX_LENGTH = 120;
+export { TEST_TOOL_NAMES };
+
+function testTools(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const tools = value.filter((tool): tool is string => typeof tool === "string" && (TEST_TOOL_NAMES as readonly string[]).includes(tool));
+  return tools.length ? [...new Set(tools)] : undefined;
+}
 export const PACK_DESCRIPTION_MAX_LENGTH = 1000;
 
 function cleanText(value: unknown, max: number): string {
@@ -50,6 +59,10 @@ export function parsePackMeta(id: string, text: string): PackMeta {
     version: typeof data.version === "string" && /^\d+(\.\d+){0,2}$/.test(data.version) ? data.version : "0.1",
     owners: Array.isArray(data.owners) ? data.owners.filter((owner): owner is string => typeof owner === "string").slice(0, 20) : [],
     createdAt: typeof data.createdAt === "string" ? data.createdAt : "",
+    ...(() => {
+      const tools = testTools((data.tests as { tools?: unknown } | undefined)?.tools);
+      return tools ? { tests: { tools } } : {};
+    })(),
   };
 }
 
@@ -123,6 +136,8 @@ export interface PackConfigInput {
   status?: unknown;
   /** `null` removes the pack's default model; undefined leaves it. */
   defaultModel?: { provider: unknown; modelId: unknown } | null;
+  /** Test sessions' tools; `null` restores the default (`read`). */
+  testTools?: unknown;
   note?: unknown;
 }
 
@@ -164,6 +179,15 @@ export async function updatePackConfig(packId: string, input: PackConfigInput, a
       if (!isPackStatus(input.status)) throw new StudioError("invalidStatus", 400);
       next.status = input.status;
     }
+    if (input.testTools !== undefined) {
+      if (input.testTools === null) delete next.tests;
+      else {
+        const tools = testTools(input.testTools);
+        if (!tools || (Array.isArray(input.testTools) && tools.length !== input.testTools.length)) throw new StudioError("invalidTools", 400);
+        if (tools.length === 1 && tools[0] === "read") delete next.tests;
+        else next.tests = { tools };
+      }
+    }
     const paths: string[] = [];
     if (JSON.stringify(next) !== JSON.stringify(meta)) {
       writePackTextAtomic(resolvePackPath(id, PACK_META_FILE), serializePackMeta(next));
@@ -203,21 +227,27 @@ function nonEmpty(packId: string, relPath: string): boolean {
   }
 }
 
-/** Concevoir: ready with instructions, a system prompt and one valid skill. Connecter and Évaluer come later. */
-export function packJourney(packId: string, validSkills: number, anySkill: boolean): PackJourney {
+/**
+ * Concevoir: ready with instructions, a system prompt and one valid skill.
+ * Évaluer is computed by the caller from the suites and campaigns (lot 2).
+ * Connecter comes with lot 3.
+ */
+export function packJourney(packId: string, validSkills: number, anySkill: boolean, evaluate: PackJourney["evaluate"] = "todo"): PackJourney {
   const agents = nonEmpty(packId, AGENTS_FILE);
   const prompt = nonEmpty(packId, APPEND_SYSTEM_FILE) || nonEmpty(packId, SYSTEM_FILE);
   const design = agents && prompt && validSkills > 0 ? "ready" : agents || prompt || anySkill ? "progress" : "todo";
-  return { design, connect: "later", evaluate: "later" };
+  return { design, connect: "later", evaluate };
 }
 
 /** Files of the pack changed outside the Studio (sessions, hand edits), relative to the pack. */
 export async function externalChanges(packId: string): Promise<ExternalChange[]> {
   const id = assertPackId(packId);
   const changes: ExternalChange[] = [];
+  // A campaign running now writes its own folder; it is recorded when it ends.
+  const running = activeRunIds(id).map((runId) => `${runDirRel(runId)}/`);
   for (const entry of await status(repoPath(id))) {
     const rel = packRelative(id, entry.path);
-    if (rel !== null) changes.push({ path: rel, kind: entry.kind });
+    if (rel !== null && !running.some((prefix) => rel.startsWith(prefix))) changes.push({ path: rel, kind: entry.kind });
   }
   return changes;
 }
@@ -225,6 +255,7 @@ export async function externalChanges(packId: string): Promise<ExternalChange[]>
 export async function packDetails(
   packId: string,
   skills: { valid: number; total: number },
+  evaluate: PackJourney["evaluate"] = "todo",
 ): Promise<PackDetails> {
   const id = assertPackId(packId);
   const meta = readPackMeta(id);
@@ -233,7 +264,7 @@ export async function packDetails(
   return {
     meta,
     updatedAt: await lastCommitDate(repoPath(id)),
-    journey: packJourney(id, skills.valid, skills.total > 0),
+    journey: packJourney(id, skills.valid, skills.total > 0, evaluate),
     piLoadsProject: trust.trusted,
     promptFiles: {
       append: existsSync(resolvePackPath(id, APPEND_SYSTEM_FILE)),

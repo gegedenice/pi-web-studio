@@ -14,6 +14,12 @@ export type StudioAction =
   | { kind: "restore-file"; path: string; date: string }
   | { kind: "restore-skill"; name: string; date: string }
   | { kind: "edit-config" }
+  | { kind: "create-suite"; name: string }
+  | { kind: "edit-suite"; name: string }
+  | { kind: "rename-suite"; from: string; to: string }
+  | { kind: "delete-suite"; name: string }
+  | { kind: "run-finished"; runId: string; summary: string }
+  | { kind: "verdicts"; runId: string; count: number }
   | { kind: "keep-external"; paths: string[] }
   | { kind: "discard-external"; paths: string[] };
 
@@ -24,6 +30,8 @@ function fileLabel(path: string): string {
   if (path === ".pi/settings.json") return "réglages Pi";
   const skill = /^\.pi\/skills\/([^/]+)\/SKILL\.md$/.exec(path);
   if (skill) return `skill ${skill[1]}`;
+  const suite = /^tests\/([^/]+)\.md$/.exec(path);
+  if (suite) return `suite ${suite[1]}`;
   return path;
 }
 
@@ -47,6 +55,12 @@ export function describeAction(action: StudioAction): string {
     case "restore-file": return `Restaure ${fileLabel(action.path)} (version du ${shortDate(action.date)})`;
     case "restore-skill": return `Restaure skill ${action.name} (supprimée le ${shortDate(action.date)})`;
     case "edit-config": return "Modifie la configuration";
+    case "create-suite": return `Crée suite ${action.name}`;
+    case "edit-suite": return `Modifie suite ${action.name}`;
+    case "rename-suite": return `Renomme suite ${action.from} en ${action.to}`;
+    case "delete-suite": return `Supprime suite ${action.name}`;
+    case "run-finished": return `Campagne ${action.runId} : ${action.summary}`;
+    case "verdicts": return `Verdicts de la campagne ${action.runId} (${action.count} cas)`;
     case "keep-external": return "Enregistre les modifications faites hors Studio";
     case "discard-external": return "Annule les modifications faites hors Studio";
   }

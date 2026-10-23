@@ -21,6 +21,7 @@ import type { DeletedSkill, ExternalChange, HistoryEntry, TextDocument } from ".
 import { hasErrors } from "./validate";
 
 const SKILL_FILE_PATTERN = /^\.pi\/skills\/([^/]+)\/SKILL\.md$/;
+const SUITE_FILE_PATTERN = /^tests\/([^/]+)\.md$/;
 
 /** Files the Studio versions one by one: the editable pack files and each SKILL.md. */
 function assertVersionedFile(relPath: string): string {
@@ -30,14 +31,24 @@ function assertVersionedFile(relPath: string): string {
     assertSkillName(skill[1]);
     return relPath;
   }
+  const suite = SUITE_FILE_PATTERN.exec(relPath);
+  if (suite) {
+    assertSkillName(suite[1]);
+    return relPath;
+  }
   if (!isEditablePackFile(relPath)) throw new StudioError("fileNotEditable", 403);
   return relPath;
+}
+
+/** Files edited through their own screen (skills, suites), never through the generic file route. */
+function hasOwnEditor(relPath: string): boolean {
+  return SKILL_FILE_PATTERN.test(relPath) || SUITE_FILE_PATTERN.test(relPath);
 }
 
 export function readEditableFile(packId: string, relPath: string): TextDocument {
   const id = assertPackId(packId);
   const rel = assertVersionedFile(relPath);
-  if (SKILL_FILE_PATTERN.test(rel)) throw new StudioError("fileNotEditable", 403);
+  if (hasOwnEditor(rel)) throw new StudioError("fileNotEditable", 403);
   readPackMeta(id);
   const content = readPackText(resolvePackPath(id, rel));
   return { path: rel, content: content ?? "", hash: content === undefined ? "" : contentHash(content), exists: content !== undefined };
@@ -54,7 +65,7 @@ export async function writeEditableFile(
 ): Promise<TextDocument> {
   const id = assertPackId(packId);
   const rel = assertVersionedFile(relPath);
-  if (SKILL_FILE_PATTERN.test(rel)) throw new StudioError("fileNotEditable", 403);
+  if (hasOwnEditor(rel)) throw new StudioError("fileNotEditable", 403);
   if (typeof content !== "string") throw new StudioError("invalidRequest", 400);
   if (rel === SETTINGS_FILE) {
     try {

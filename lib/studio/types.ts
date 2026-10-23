@@ -3,6 +3,10 @@
 
 export const PACK_STATUSES = ["en-conception", "en-test", "valide", "archive"] as const;
 export type PackStatus = (typeof PACK_STATUSES)[number];
+/** pi's coding tools a pack may give its test sessions (MCP tools come on top). */
+export const TEST_TOOL_NAMES = ["read", "grep", "find", "ls", "bash", "edit", "write"] as const;
+/** Tools that reach outside the pack folder: the configuration warns about them (STUDIO-NOTES Q-L2-2). */
+export const WIDE_TEST_TOOLS = ["bash", "ls", "find"] as const;
 
 /** `.studio/pack.json`, written by the Studio only. */
 export interface PackMeta {
@@ -13,6 +17,8 @@ export interface PackMeta {
   version: string;
   owners: string[];
   createdAt: string;
+  /** Lot 2: the tools test sessions get (pi's coding tools); `["read"]` when absent. */
+  tests?: { tools: string[] };
 }
 
 export interface PackSummary extends PackMeta {

@@ -110,3 +110,72 @@ test("a deleted skill is listed in the pack history and comes back from it", asy
   assert.equal(res.status, 200);
   assert.deepEqual((await json(await skillsRoute.GET(request("GET", "/x"), pack))).body.skills.map((item) => item.name), ["crossref"]);
 });
+
+const testsRoute = await jiti.import("./packs/[pack]/tests/route.ts");
+const suiteRoute = await jiti.import("./packs/[pack]/tests/[suite]/route.ts");
+const runsRoute = await jiti.import("./packs/[pack]/runs/route.ts");
+const runRoute = await jiti.import("./packs/[pack]/runs/[run]/route.ts");
+const compareRoute = await jiti.import("./packs/[pack]/compare/route.ts");
+const runner = await jiti.import("../../../lib/studio/tests/runner.ts");
+const { createFakeExecutor } = await jiti.import("../../../lib/studio/tests/executor.ts");
+
+test("lot 2 through the API: suites, a campaign's verdicts, comparison, test tools", async (t) => {
+  const { packsDir } = setupStudioEnv(t);
+  quiet(t);
+  await packsRoute.POST(request("POST", "/packs", { id: "lr", title: "Revue" }));
+  const pack = params({ pack: "lr" });
+
+  let res = await json(await testsRoute.POST(request("POST", "/packs/lr/tests", { name: "Pas Un Nom" }), pack));
+  assert.deepEqual([res.status, res.body.code], [400, "invalidSuiteName"]);
+  res = await json(await testsRoute.POST(request("POST", "/packs/lr/tests", { name: "recherche", titre: "Recherche" }), pack));
+  assert.equal(res.status, 201);
+  assert.deepEqual(res.body.suite.cases.map((item) => item.id), ["R-01"]);
+  res = await json(await testsRoute.POST(request("POST", "/packs/lr/tests", { name: "recherche" }), pack));
+  assert.deepEqual([res.status, res.body.code], [409, "suiteExists"]);
+
+  const suite = params({ pack: "lr", suite: "recherche" });
+  const { hash } = (await json(await suiteRoute.GET(request("GET", "/x"), suite))).body.suite;
+  res = await json(await suiteRoute.PUT(request("PUT", "/x", { meta: { titre: "Recherche" }, cases: [{ id: "R-01", requete: "" }, { id: "R-01", requete: "b" }], baseHash: hash }), suite));
+  assert.deepEqual([res.status, res.body.code, res.body.issues.map((issue) => issue.code)], [422, "validationFailed", ["suiteQueryMissing", "suiteIdDuplicate"]]);
+  res = await json(await suiteRoute.PUT(request("PUT", "/x", { meta: { titre: "Recherche" }, cases: [{ id: "R-01", requete: "a" }, { id: "R-02", requete: "b" }], baseHash: hash }), suite));
+  assert.equal(res.status, 200);
+  res = await json(await suiteRoute.PUT(request("PUT", "/x", { raw: "x", baseHash: hash }), suite));
+  assert.deepEqual([res.status, res.body.code], [409, "conflict"]);
+  assert.equal((await json(await testsRoute.GET(request("GET", "/x"), pack))).body.suites[0].caseCount, 2);
+
+  res = await json(await runsRoute.POST(request("POST", "/packs/lr/runs", { model: { provider: "x" } }), pack));
+  assert.deepEqual([res.status, res.body.code], [400, "invalidModel"]);
+
+  const started = await runner.startCampaign("lr", { model: { provider: "fake", modelId: "m1" } }, { id: "alice", name: "Alice", email: "a@x" }, createFakeExecutor({ "R-01": { answer: "A" }, "R-02": { answer: "B" } }));
+  await started.done;
+  const runId = started.run.runId;
+  const run = params({ pack: "lr", run: runId });
+  res = await json(await runRoute.GET(request("GET", "/x"), run));
+  assert.deepEqual([res.body.active, res.body.unfinished, res.body.run.cases.map((item) => item.answer)], [false, [], ["A", "B"]]);
+  res = await json(await runRoute.POST(request("POST", "/x", { action: "stop" }), run));
+  assert.deepEqual([res.status, res.body.code], [409, "runNotActive"]);
+  res = await json(await runRoute.POST(request("POST", "/x", { action: "rerun" }), run));
+  assert.deepEqual([res.status, res.body.code], [400, "campaignEmpty"]);
+  res = await json(await runRoute.PUT(request("PUT", "/x", { verdicts: [{ suite: "recherche", id: "R-01", verdict: "bien" }] }), run));
+  assert.deepEqual([res.status, res.body.code], [400, "invalidVerdict"]);
+  res = await json(await runRoute.PUT(request("PUT", "/x", { verdicts: [{ suite: "recherche", id: "R-01", verdict: "ok" }, { suite: "recherche", id: "R-02", verdict: "ko", comment: "Hors sujet" }] }), run));
+  assert.deepEqual(res.body.run.cases.map((item) => [item.verdict, item.comment, item.reviewedBy]), [["ok", "", "studio"], ["ko", "Hors sujet", "studio"]]);
+  res = await json(await runRoute.GET(request("GET", "/x"), params({ pack: "lr", run: "../x" })));
+  assert.deepEqual([res.status, res.body.code], [400, "invalidRun"]);
+
+  res = await json(await compareRoute.GET(request("GET", "/packs/lr/compare?suite=recherche"), pack));
+  assert.deepEqual(res.body.comparison.columns.map((column) => column.model), ["fake/m1"]);
+  assert.equal(res.body.comparison.cells["recherche/R-02"][runId].verdict, "ko");
+  assert.equal((await json(await packRoute.GET(request("GET", "/x"), pack))).body.pack.journey.evaluate, "ready");
+  assert.equal((await json(await runsRoute.GET(request("GET", "/x"), pack))).body.runs[0].reviewed, 2);
+
+  res = await json(await packRoute.PATCH(request("PATCH", "/x", { testTools: ["read", "rm"] }), pack));
+  assert.deepEqual([res.status, res.body.code], [400, "invalidTools"]);
+  res = await json(await packRoute.PATCH(request("PATCH", "/x", { testTools: ["read", "grep"] }), pack));
+  assert.deepEqual(res.body.meta.tests, { tools: ["read", "grep"] });
+  res = await json(await packRoute.PATCH(request("PATCH", "/x", { testTools: null }), pack));
+  assert.equal(res.body.meta.tests, undefined);
+
+  const log = gitIn(packsDir, "log", "--format=%s", "--", "lr/tests", "lr/.studio/runs").trim().split("\n").map((line) => line.replace(/ \(version du .*\)$/, ""));
+  assert.deepEqual(log, [`[lr] Verdicts de la campagne ${runId} (2 cas)`, `[lr] Campagne ${runId} : 2 cas, 2 terminés`, "[lr] Modifie suite recherche", "[lr] Crée suite recherche"]);
+});
