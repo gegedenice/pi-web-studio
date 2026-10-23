@@ -456,7 +456,7 @@ Ajouts du lot 1 :
 - 2026-10-14 : lot 1 livré (§8). Critères 1 et 2 vérifiés ; critère 3 et V1–V12 à vérifier en local.
 - 2026-10-15 : conteneur de test local et procédure TEST-LOCAL.md (§9).
 - 2026-10-16 : retour du test local (PR, commentaire du 16/10) : correctif de `STUDIO_HOME`, et constat fiable des skills pour V1 (§10).
-- 2026-10-23 : lot 1 validé par l'intégratrice. Plan du lot 2 proposé (§11), en attente de relecture.
+- 2026-10-23 : lot 1 validé par l'intégratrice. Plan du lot 2 proposé (§11) puis accepté (§11.6).
 
 ---
 
@@ -708,4 +708,17 @@ Je recommande (a).
 **Q-L2-7 — Choix du modèle.** Un modèle par campagne. Pour comparer deux modèles, on lance deux campagnes. Faut-il pouvoir lancer la même campagne sur plusieurs modèles d'un seul geste ? Elle serait alors découpée en campagnes successives, une par modèle.
 
 **Q-L2-8 — Sessions de test dans pi-web.** Elles s'appellent `[test] <pack> · <id du cas> · <modèle>` et se regroupent sous le projet du dépôt des packs, au milieu des sessions de travail. Le préfixe suffit-il, ou faut-il un filtre dans la barre latérale ? Le filtre serait une modification amont autorisée (§4), mais elle ajoute du code dans `SessionSidebar.tsx`.
+
+### 11.6 Décisions (2026-10-23)
+
+Recommandations retenues telles quelles :
+
+- **Q-L2-1** : le blocage des outils MCP non annotés est gardé, avec un message dans la revue du cas.
+- **Q-L2-2** : les suites restent dans `tests/` ; un avertissement s'affiche si `tests.tools` contient `bash`, `ls` ou `find`.
+- **Q-L2-3** : suivi rafraîchi toutes les 2 s.
+- **Q-L2-4** : un cas interrompu passe en `erreur`, et un bouton relance les cas non terminés.
+- **Q-L2-5** : seul le niveau de raisonnement se règle par campagne.
+- **Q-L2-6** : pas de notation automatique.
+- **Q-L2-7** : un modèle par campagne.
+- **Q-L2-8** : le préfixe `[test]` suffit, sans filtre dans la barre latérale.
 
