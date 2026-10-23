@@ -162,7 +162,7 @@ Faites-les dans cet ordre. Chacune indique l'**action**, le **résultat attendu*
 
 ### V1 — Pi en ligne de commande charge la skill du pack
 
-**À savoir avant de commencer.** Ne demandez pas au modèle « quelles skills as-tu ? » pour faire ce constat : un petit modèle invente volontiers une liste plausible, même quand le pack n'en a aucune. Le constat se fait avec Pi lui-même, sans modèle (commandes 1 et 2). La commande 3, avec le modèle, n'est qu'un complément.
+**À savoir avant de commencer.** Ne demandez pas au modèle « quelles skills as-tu ? », que ce soit en ligne de commande ou dans une session Pi Web. Le modèle répond toujours par une liste, souvent inventée à partir du contexte du pack (« Literature Review », « Citation Management »…), même quand le pack n'a aucune skill. Ce n'est un défaut ni du Studio ni de Pi : avec zéro skill, Pi n'envoie au modèle aucune liste de skills. Le constat se fait donc **sans le modèle**, par les points 1, 2 et 4 ; le point 3 n'est qu'un complément.
 
 - **Action** :
   1. Dans le Studio, ajoutez au pack au moins une skill, par exemple `recherche-openalex` (V5), et enregistrez-la.
@@ -171,7 +171,8 @@ Faites-les dans cet ordre. Chacune indique l'**action**, le **résultat attendu*
   - `pi --version` affiche `1.2.0` ;
   - commande 1 : « Confiance : oui », puis **exactement** les skills créées dans le Studio, ni plus ni moins ;
   - commande 2 : en tapant `/skill:` dans Pi, la liste proposée contient ces mêmes skills ;
-  - commande 3 : la réponse suit les instructions de la skill nommée.
+  - commande 3 : la réponse suit les instructions de la skill nommée ;
+  - point 4 : le prompt système contient un bloc `<available_skills>` qui liste exactement ces skills. Pour un pack sans skill, ce bloc est **absent**.
 - **Commandes** (remplacez `essai` par l'identifiant de votre pack) :
 
   ```powershell
@@ -199,6 +200,12 @@ Faites-les dans cet ordre. Chacune indique l'**action**, le **résultat attendu*
      ```powershell
      docker compose -f compose.dev.yml exec -w /workspace/packs/essai pi-studio pi -p "/skill:recherche-openalex Résume en une phrase ce que cette skill te demande de faire."
      ```
+
+  4. Ce que Pi envoie réellement au modèle, dans Pi Web :
+     1. Ouvrez « Retour à Pi Web », puis « Open another project… », et choisissez `/workspace/packs/essai`.
+     2. Démarrez une session et envoyez un premier message, par exemple « Bonjour ».
+     3. Cliquez sur **System prompt** dans la barre du haut.
+     4. Cherchez (`Ctrl+F`) `available_skills` : chaque skill du pack y figure avec son nom (`<name>…</name>`) et sa description.
 
 ### V8 — Le modèle par défaut du pack est bien utilisé
 
