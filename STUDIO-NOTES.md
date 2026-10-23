@@ -722,3 +722,41 @@ Recommandations retenues telles quelles :
 - **Q-L2-7** : un modèle par campagne.
 - **Q-L2-8** : le préfixe `[test]` suffit, sans filtre dans la barre latérale.
 
+## 12. Lot 2 — livraison (2026-10-23)
+
+### 12.1 Ce qui est livré
+
+- **Rubrique Tests** du pack, en trois onglets (`components/studio/tests/`) :
+  - **Suites** : liste, éditeur en tableau (identifiant, requête, attendu, sources attendues ; skill testée), validation avec ligne et correction, historique et restauration, renommage, suppression. En mode avancé, le texte brut de la suite.
+  - **Campagnes** : lancement (suites ou cas un par un, modèle, niveau de raisonnement, délai par cas en minutes, cas en parallèle de 1 à 4), avertissement si des modifications hors Studio ne sont pas enregistrées, suivi rafraîchi toutes les 2 s, « Arrêter », « Relancer les cas non terminés ». Revue cas par cas : requête, attendu, réponse rendue en Markdown, appels d'outils repliés (« bloqué » pour un outil MCP refusé en lecture seule), verdict OK / Partiel / KO, commentaire, « Ouvrir la session », « Enregistrer les verdicts ».
+  - **Comparaison** : cas × campagnes, verdict ou état dans chaque cellule, commentaire, filtre par suite ; l'en-tête d'une colonne ouvre la campagne.
+- **Configuration** (mode avancé) : « Outils des sessions de test » (`tests.tools` dans `pack.json`), avec un avertissement pour `bash`, `ls` et `find` (Q-L2-2).
+- **Parcours** : « Évaluer » est « En cours » dès qu'une suite ou une campagne existe, « Prêt » quand une campagne terminée a tous ses cas jugés.
+- **Moteur** (`lib/studio/tests/`) : `parse.ts`, `suites.ts`, `runs.ts`, `runner.ts`, `executor.ts` et `pi-executor.ts`, `transcript.ts`, `compare.ts`, `active-runs.ts`, `run-types.ts`. Routes : `tests`, `tests/[suite]`, `runs`, `runs/[run]` (GET, POST `stop` | `rerun`, PUT verdicts), `compare`.
+
+### 12.2 Écarts au plan du §11 et choix à connaître
+
+- **Arrêt et relance** passent par `POST …/runs/<id>` avec `{ action: "stop" | "rerun" }`, les verdicts par `PUT …/runs/<id>`, la comparaison par `GET …/compare` : moins de routes que prévu au §11.3.
+- **Pas de reprise au démarrage du serveur** : une campagne restée `en-cours` sans exécutant vivant est marquée `interrompue` à sa première lecture (liste ou ouverture), puis enregistrée comme une version par « PI Studio ». Même effet, sans tâche au démarrage.
+- **Fin du tour** : `piExecutor` attend les événements `prompt_done` / `prompt_error` de pi-web (plutôt que `agent_end`), sonde `isAwaitingInput()` chaque seconde (le cas passe en `erreur` avec « L'agent a demandé une réponse à l'utilisateur »), puis lit les messages dans le fichier de session.
+- **Délai minimal** : 10 s côté serveur, 1 minute dans l'écran.
+- **`run.json`** est la seule source de vérité de la campagne ; ses écritures passent par une file par campagne, pour que l'avancement et les verdicts ne s'écrasent jamais.
+- `.studio/runs/<campagne en cours>/` est exclu du bandeau « Modifié en dehors du Studio » le temps de la campagne.
+- **e2e** : les deux campagnes passent par de vraies sessions pi-web, sur un faux serveur compatible OpenAI lancé par le script (plutôt que l'exécuteur factice, que le serveur de dev ne peut pas recevoir). Les verdicts sont relus après un rechargement de la page ; la relecture après redémarrage du serveur est couverte par `runner.test.mjs` et par V15 en local.
+- **Aucun fichier amont** n'est modifié : le lot 2 ne touche que du code Studio.
+
+### 12.3 Tests
+
+- **Unitaires et routes** (`npm test`) : `lib/studio/tests/parse.test.mjs` (4), `lib/studio/tests/runner.test.mjs` (7 : suites, séquence, timeout, concurrence et arrêt, sous-ensemble et refus, verdicts après redémarrage et comparaison, campagne interrompue), `app/api/studio/routes.test.mjs` (+1 : suites, campagne, verdicts, comparaison, outils de test), `lib/studio/i18n.test.mjs`. Tous verts.
+- **Intégration sans LLM** : `lib/studio/tests/pi-executor.integration.test.mjs`, vraies sessions pi-web contre un faux serveur : skill du pack dans le prompt système, nom `[test]`, outils `["read"]`, une requête par cas sans historique, jetons, transcript, et un modèle muet qui passe chaque cas en `timeout` sans arrêter la campagne.
+- **e2e** (`node e2e/studio.mjs`, Chromium) : parcours du lot 1, puis suite de 4 cas, deux campagnes, verdicts, comparaison, sans jargon à l'écran, et `git log` (une version par enregistrement de suite, par campagne et par verdicts).
+- **Échecs connus sans lien avec le Studio** : dans ce conteneur, `npm test` échoue aussi sur `lib/rotate-preview-secrets.test.mjs` (exécution en root), `app/api/models/route.test.mjs` et `lib/rpc-manager-chat-only.integration.test.mjs`. Les deux derniers échouent de la même façon sans les changements du lot 2.
+
+### 12.4 Critères d'acceptation du lot 2
+
+| Critère | Statut |
+|---|---|
+| Une suite de 4 cas lancée sur deux modèles ; la comparaison affiche les deux colonnes. | ✅ e2e (deux faux modèles, vraies sessions) et intégration. En local : V14 avec Qwen3-VL-8B. |
+| Les verdicts survivent à un redémarrage. | ✅ `runner.test.mjs` (tout est relu depuis les fichiers, rien en mémoire) ; e2e après rechargement. En local : V15. |
+| Un cas qui dépasse le délai est marqué `timeout` et la campagne continue. | ✅ `runner.test.mjs` et intégration (modèle muet). En local : V16. |
+

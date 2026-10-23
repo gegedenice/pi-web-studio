@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { errorMessage, packPath, studioFetch } from "@/lib/studio/client";
-import { PACK_STATUSES, type PackDetails, type PackStatus } from "@/lib/studio/types";
+import { PACK_STATUSES, type PackDetails, type PackStatus, TEST_TOOL_NAMES, WIDE_TEST_TOOLS } from "@/lib/studio/types";
 import { FileEditor } from "./FileEditor";
 import { SaveBar } from "./MarkdownEditor";
 import { Notice, useSaveShortcut, useUnsavedGuard } from "./StudioUi";
@@ -18,10 +18,12 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
 }) {
   const { t } = useI18n();
   const initialModel = pack.defaultModel ? `${pack.defaultModel.provider}/${pack.defaultModel.modelId}` : "";
+  const initialTools = (pack.meta.tests?.tools?.length ? pack.meta.tests.tools : ["read"]).join(",");
   const [title, setTitle] = useState(pack.meta.title);
   const [description, setDescription] = useState(pack.meta.description);
   const [status, setStatus] = useState<PackStatus>(pack.meta.status);
   const [model, setModel] = useState(initialModel);
+  const [tools, setTools] = useState(initialTools);
   const [models, setModels] = useState<ModelOption[] | null>(null);
   const [modelsError, setModelsError] = useState(false);
   const [note, setNote] = useState("");
@@ -34,7 +36,8 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
     setDescription(pack.meta.description);
     setStatus(pack.meta.status);
     setModel(initialModel);
-  }, [pack.meta.title, pack.meta.description, pack.meta.status, initialModel]);
+    setTools(initialTools);
+  }, [pack.meta.title, pack.meta.description, pack.meta.status, initialModel, initialTools]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,12 +48,12 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
     return () => { cancelled = true; };
   }, [pack.meta.id]);
 
-  const dirty = title !== pack.meta.title || description !== pack.meta.description || status !== pack.meta.status || model !== initialModel;
+  const dirty = title !== pack.meta.title || description !== pack.meta.description || status !== pack.meta.status || model !== initialModel || tools !== initialTools;
   useEffect(() => onDirtyChange(dirty || settingsDirty), [dirty, settingsDirty, onDirtyChange]);
   useUnsavedGuard(dirty);
 
   const save = useCallback(async () => {
-    if (!dirty || saving) return;
+    if (!dirty || saving || !tools) return;
     setSaving(true);
     setError(null);
     const slash = model.indexOf("/");
@@ -63,6 +66,7 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
           status,
           note,
           ...(model !== initialModel ? { defaultModel: model ? { provider: model.slice(0, slash), modelId: model.slice(slash + 1) } : null } : {}),
+          ...(tools !== initialTools ? { testTools: tools === "read" ? null : tools.split(",") } : {}),
         },
       });
       setNote("");
@@ -72,10 +76,16 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
     } finally {
       setSaving(false);
     }
-  }, [dirty, saving, model, initialModel, pack.meta.id, title, description, status, note, onSaved, t]);
+  }, [dirty, saving, model, initialModel, tools, initialTools, pack.meta.id, title, description, status, note, onSaved, t]);
 
   useSaveShortcut(() => void save(), dirty && !saving);
 
+  const toolList = tools ? tools.split(",") : [];
+  const toggleTool = (tool: string) => {
+    const next = toolList.includes(tool) ? toolList.filter((item) => item !== tool) : [...toolList, tool];
+    setTools(TEST_TOOL_NAMES.filter((name) => next.includes(name)).join(","));
+  };
+  const wide = toolList.filter((tool) => (WIDE_TEST_TOOLS as readonly string[]).includes(tool));
   const known = models?.some((option) => `${option.provider}/${option.id}` === model);
   return (
     <div className="studio-section">
@@ -119,7 +129,23 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
           <p className="studio-hint">{modelsError ? t("studio.config.modelsError") : models?.length === 0 ? t("studio.config.modelsEmpty") : t("studio.config.modelHint")}</p>
         </div>
       </div>
-      <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} note={note} onNoteChange={setNote} />
+      {advanced && (
+        <fieldset className="studio-card studio-fieldset">
+          <legend className="studio-subtitle">{t("studio.config.testToolsTitle")}</legend>
+          <p className="studio-hint">{t("studio.config.testToolsIntro")}</p>
+          <div className="studio-check-grid">
+            {TEST_TOOL_NAMES.map((tool) => (
+              <label key={tool} className="studio-check-row">
+                <input type="checkbox" checked={toolList.includes(tool)} onChange={() => toggleTool(tool)} />
+                <span className="studio-mono">{tool}</span>
+              </label>
+            ))}
+          </div>
+          {toolList.length === 0 && <Notice kind="error">{t("studio.config.testToolsNone")}</Notice>}
+          {wide.length > 0 && <Notice kind="warning">{t("studio.config.testToolsWide", { list: wide.join(", ") })}</Notice>}
+        </fieldset>
+      )}
+      <SaveBar dirty={dirty && toolList.length > 0} saving={saving} onSave={() => void save()} note={note} onNoteChange={setNote} />
       {advanced && (
         <section className="studio-card">
           <h3 className="studio-subtitle">{t("studio.config.settingsTitle")}</h3>

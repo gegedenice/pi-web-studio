@@ -13,6 +13,7 @@ import { PackHistory } from "./HistoryPanel";
 import { SkillsSection } from "./SkillsSection";
 import { StudioHeader } from "./StudioHeader";
 import { ConfirmDialog, Dialog, IssueBadge, Notice, useAdvancedMode, ValidationList } from "./StudioUi";
+import { TestsSection } from "./tests/TestsSection";
 
 const SECTIONS = ["instructions", "skills", "mcp", "tests", "configuration", "history", "providers"] as const;
 type Section = (typeof SECTIONS)[number];
@@ -33,6 +34,10 @@ export function useDescribePath(): (path: string) => string {
     if (path === ".gitignore") return t("studio.files.ignore");
     const skill = /^\.pi\/skills\/([^/]+)(?:\/(.+))?$/.exec(path);
     if (skill) return skill[2] && skill[2] !== "SKILL.md" ? t("studio.files.skillFile", { name: skill[1], file: skill[2] }) : t("studio.files.skill", { name: skill[1] });
+    const suite = /^tests\/([^/]+)\.md$/.exec(path);
+    if (suite) return t("studio.files.suite", { name: suite[1] });
+    const run = /^\.studio\/runs\/([^/]+)(?:\/|$)/.exec(path);
+    if (run) return t("studio.files.run", { name: run[1] });
     return path;
   }, [t]);
 }
@@ -102,7 +107,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
     { id: "instructions", label: t("studio.nav.instructions") },
     { id: "skills", label: t("studio.nav.skills"), count: skills.length },
     { id: "mcp", label: t("studio.nav.mcp"), later: t("studio.later.lot3") },
-    { id: "tests", label: t("studio.nav.tests"), later: t("studio.later.lot2") },
+    { id: "tests", label: t("studio.nav.tests") },
     { id: "configuration", label: t("studio.nav.configuration") },
     { id: "history", label: t("studio.nav.history") },
     { id: "providers", label: t("studio.nav.providers") },
@@ -157,11 +162,14 @@ export function PackWorkshop({ packId }: { packId: string }) {
           {section === "configuration" && <ConfigurationSection pack={pack} advanced={advanced} onSaved={changed} onDirtyChange={onDirtyChange} />}
           {section === "history" && <PackHistory packId={packId} refreshKey={refreshKey} onRestored={changed} describePath={describePath} />}
           {section === "providers" && <ProvidersSection />}
-          {(section === "mcp" || section === "tests") && (
+          {section === "tests" && (
+            <TestsSection packId={packId} pack={pack} skills={skills} advanced={advanced} item={item} onNavigate={(next) => navigate("tests", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
+          )}
+          {section === "mcp" && (
             <div className="studio-section">
-              <h2 className="studio-title">{section === "mcp" ? t("studio.nav.mcp") : t("studio.nav.tests")}</h2>
+              <h2 className="studio-title">{t("studio.nav.mcp")}</h2>
               <div className="studio-empty">
-                <p>{section === "mcp" ? t("studio.later.mcpText") : t("studio.later.testsText")}</p>
+                <p>{t("studio.later.mcpText")}</p>
               </div>
             </div>
           )}

@@ -280,6 +280,72 @@ Faites-les dans cet ordre. Chacune indique l'**action**, le **résultat attendu*
   - la barre « Enregistrer » reste visible en bas ;
   - rien ne déborde horizontalement.
 
+### Lot 2 — Tests et campagnes
+
+Ces vérifications demandent le pack `essai` de V1, avec sa skill, et le provider `llamacpp-hote` de l'étape 5. Pour V14, un second modèle est utile : un autre fichier GGUF servi par llama.cpp, ou le même modèle déclaré deux fois dans `models.json` sous deux noms.
+
+### V13 — Une suite de tests
+
+- **Action** :
+  1. Dans le pack `essai`, ouvrez la rubrique **Tests**, puis cliquez sur « Créer une première suite ». Titre : « Recherche documentaire ».
+  2. Remplissez quatre cas (« Ajouter un cas ») avec une requête et un attendu chacun, puis `Ctrl+S`.
+  3. Donnez au deuxième cas l'identifiant du premier, puis enregistrez.
+  4. Rétablissez l'identifiant. Cochez « Mode avancé », passez en « Texte brut », regardez le fichier, puis revenez au tableau.
+- **Attendu** :
+  - étape 2 : « Tout est enregistré » et « Aucun problème détecté. » ;
+  - étape 3 : l'enregistrement est refusé avec « L'identifiant … est déjà utilisé ligne … » ;
+  - étape 4 : le texte brut montre l'en-tête `titre:` puis un tableau `| id | requête | attendu | sources attendues |`.
+- **Commande** :
+
+  ```powershell
+  studio cat /workspace/packs/essai/tests/recherche-documentaire.md
+  ```
+
+### V14 — Deux campagnes, la revue et la comparaison
+
+- **Action** :
+  1. Onglet **Campagnes**, « Lancer une campagne » : gardez la suite cochée, choisissez le premier modèle et lancez.
+  2. Suivez l'avancement sans recharger la page.
+  3. Ouvrez chaque cas, lisez la réponse, donnez un verdict (OK, Partiel ou KO) et un commentaire à l'un d'eux, puis « Enregistrer les verdicts ».
+  4. Sur un cas, cliquez sur « Ouvrir la session ».
+  5. Lancez une seconde campagne avec le second modèle, puis ouvrez l'onglet **Comparaison**.
+- **Attendu** :
+  - étape 2 : les cas passent de « En attente » à « En cours » puis « Terminé », et le compteur avance toutes les 2 secondes environ ;
+  - étape 3 : « Verdicts enregistrés. », et la liste affiche « 4 / 4 jugés » ;
+  - étape 4 : Pi Web s'ouvre dans un nouvel onglet, sur une session nommée `[test] essai · RD-01 · <modèle>` ;
+  - étape 5 : une colonne par campagne ; les verdicts de la première, et « À juger » pour la seconde ;
+  - dans le Parcours, « Évaluer » passe à « Prêt » quand une campagne est entièrement jugée.
+- **Commande** :
+
+  ```powershell
+  studio git -C /workspace/packs log --format="%an | %s" -6
+  ```
+
+  On attend une version par enregistrement de la suite, une par campagne terminée (« Campagne … : 4 cas, 4 terminés ») et une par « Enregistrer les verdicts ». Aucune version n'est créée pendant l'exécution.
+
+### V15 — Les verdicts survivent à un redémarrage, et une campagne interrompue
+
+- **Action** :
+  1. Après V14, lancez `docker compose -f compose.dev.yml restart`, puis rouvrez la campagne jugée.
+  2. Lancez une nouvelle campagne, et redémarrez le conteneur pendant qu'elle tourne. Rouvrez-la.
+  3. Cliquez sur « Relancer les … cas non terminés ».
+- **Attendu** :
+  - étape 1 : les verdicts et commentaires sont toujours là ;
+  - étape 2 : la campagne est « Interrompue » ; les cas non terminés sont en « Erreur » avec « Le serveur s'est arrêté pendant la campagne. » ;
+  - étape 3 : une nouvelle campagne démarre avec ces seuls cas.
+
+### V16 — Le délai par cas, les outils, et le bouton Arrêter
+
+- **Action** :
+  1. Lancez une campagne avec un délai de **1 minute**, sur une question longue (par exemple « Rédige une synthèse de 3000 mots sur… »).
+  2. Lancez une campagne de quatre cas et cliquez sur « Arrêter » pendant le premier cas.
+  3. En mode avancé, rubrique Configuration, cochez `bash` dans « Outils des sessions de test ».
+- **Attendu** :
+  - étape 1 : le cas passe « Hors délai » après une minute environ, et les cas suivants s'exécutent ;
+  - étape 2 : la campagne est « Arrêtée », les cas restants sont en « Erreur » avec « Campagne arrêtée avant ce cas. » ;
+  - étape 3 : un avertissement explique que `bash` permet d'agir hors du dossier du pack. Décochez-le et enregistrez.
+- **Remarque** : avec l'outil `read` seul (le défaut), un outil MCP que son serveur ne déclare pas « lecture seule » est refusé ; la revue l'indique « bloqué ». Cela concerne le lot 3.
+
 ### V3 et V4 — Au déploiement
 
 Ces deux vérifications demandent le proxy d'authentification (Traefik avec forward-auth). Elles se font donc **au déploiement**, pas en local :
