@@ -456,6 +456,7 @@ Ajouts du lot 1 :
 - 2026-10-14 : lot 1 livré (§8). Critères 1 et 2 vérifiés ; critère 3 et V1–V12 à vérifier en local.
 - 2026-10-15 : conteneur de test local et procédure TEST-LOCAL.md (§9).
 - 2026-10-16 : retour du test local (PR, commentaire du 16/10) : correctif de `STUDIO_HOME`, et constat fiable des skills pour V1 (§10).
+- 2026-10-23 : lot 1 validé par l'intégratrice. Plan du lot 2 proposé (§11), en attente de relecture.
 
 ---
 
@@ -605,4 +606,106 @@ Vérifications :
 - **V8 et V9** : ✅ Navigation entre Pi Web et le Studio correcte après le correctif du §10.1.
 - **V1** : ✅ Pour le pack `literature-review`, sans skill, le prompt système affiché par Pi Web (bouton « System prompt ») ne contient aucun bloc `<available_skills>`. Les skills citées par le modèle quand on l'interroge sont inventées. TEST-LOCAL.md V1 s'appuie désormais sur ce constat et sur `list-skills.mjs`, jamais sur la réponse du modèle.
 - Reste à faire en local : V10 à V12. V3 et V4 se feront au déploiement.
+
+---
+
+## 11. Lot 2 : plan proposé (2026-10-23, à relire avant le code)
+
+Le lot 1 est validé. Ce plan suit la méthode de STUDIO.md §10.3 : fichiers créés et modifiés, tests, puis questions. Rien n'est codé tant qu'il n'est pas relu.
+
+### 11.1 Ce que le lot 2 réutilise de pi-web
+
+| Besoin | Point d'entrée | Constat |
+|---|---|---|
+| Session neuve, cwd = pack, modèle imposé | `startRpcSession(clé, "", packDir, { initialModel, toolNames, thinkingLevel })` (`lib/rpc-manager.ts`), appelé comme le fait `app/api/agent/new/route.ts` | Une session par cas, sans historique. Elle apparaît dans la barre latérale de pi-web comme toute session. |
+| Envoyer la requête et attendre la fin | `wrapper.send({ type: "prompt", message })` répond dès que le message est accepté. La fin du tour se lit sur `wrapper.onEvent()` (`agent_end`). | Sert aussi à mesurer la durée. |
+| Timeout | `wrapper.send({ type: "abort" })`, puis `shutdown()` | Un cas qui attend une réponse d'extension (`isAwaitingInput()`) est traité comme bloqué, donc en timeout. |
+| Réponse et jetons | `get_last_assistant_text`, `get_session_stats` | Remplissent `tokens.input` et `tokens.output` de `run.json`. |
+| Nom `[test]` | `wrapper.send({ type: "set_session_name", name })` | Le préfixe suffit à repérer les sessions de test (§4 : « préfixe ou filtre »). Aucune modification amont. |
+| Transcript | `openSessionManager()` / `buildSessionContext()` (`lib/session-reader.ts`), `normalizeToolCalls()` | Export Markdown lisible : requête, réponse finale, appels d'outils avec leurs arguments et un résultat tronqué. |
+| Jeu d'outils restreint | `toolNames: ["read"]` | Il ne remplace que les outils de code : les outils MCP actifs restent disponibles (`resolveActiveToolNames()`). **Voir Q-L2-1** pour le blocage de certains outils MCP. |
+| « Ouvrir la session » | lien `/?session=<id>` (`lib/session-links.ts`) | Ouvre directement Pi Web grâce au correctif de `STUDIO_HOME`. |
+
+### 11.2 Données (STUDIO.md §2.3 et §2.4)
+
+- **Suites** : `tests/<suite>.md` dans le pack, au format de la spec : en-tête facultatif (`titre`, `skill`), puis un tableau dont les colonnes sont reconnues par leur intitulé, sans tenir compte de la casse ni des accents.
+- **Campagnes** : `.studio/runs/<AAAA-MM-JJTHH-MM>_<modèle>/run.json`, avec un fichier `cases/<id>.md` par cas.
+  - `run.json` est réécrit, de façon atomique, à chaque changement d'état.
+  - `packCommit` est la version enregistrée au lancement.
+  - Le lancement avertit s'il reste des modifications non enregistrées dans le pack (bandeau du lot 1).
+- **Restriction d'outils** : un champ `tests.tools` dans `pack.json`, par défaut `["read"]`, modifiable dans Configuration (mode avancé) pour élargir le jeu d'outils, par exemple à `["read", "bash"]`.
+- **Commits** :
+  - un commit à la fin de la campagne : `run.json` et transcripts ;
+  - un commit à chaque « Enregistrer les verdicts » ;
+  - jamais de commit pendant l'exécution (cela éviterait d'enchaîner des dizaines de versions).
+
+### 11.3 Fichiers
+
+**Créés :**
+
+| Fichier | Contenu |
+|---|---|
+| `lib/studio/tests/parse.ts` | Parsing et sérialisation des suites. Fonctions pures. Erreurs avec numéro de ligne et correction suggérée : colonne `id` absente, `id` vide ou en double dans le pack, ligne au nombre de colonnes incorrect, en-tête mal formé. Les `|` sont échappés dans les cellules à l'écriture. |
+| `lib/studio/tests/suites.ts` | Lister, lire, créer, enregistrer, renommer, supprimer une suite. Mêmes mécanismes que les skills du lot 1 : liste blanche `tests/*.md`, concurrence optimiste, un commit par enregistrement, historique et restauration. |
+| `lib/studio/tests/runs.ts` | Création d'une campagne, lecture et écriture de `run.json` (types `RunFile` et `RunCase`), liste des campagnes, verdicts. Au démarrage du serveur, un cas resté `en-cours` (conteneur arrêté pendant une campagne) passe en `erreur` avec le motif « interrompue ». |
+| `lib/studio/tests/executor.ts` | Interface injectable `CaseExecutor.run(case, { packDir, model, tools, timeoutMs, signal }) → { status, answer, sessionId, sessionFile, durationMs, tokens }`. Deux implémentations : `piExecutor` (vraie session pi-web, §11.1) et `fakeExecutor` (tests : réponses, délais et erreurs programmés). |
+| `lib/studio/tests/runner.ts` | File de campagnes en mémoire (`globalThis`, comme les sessions de pi-web). Exécution séquentielle par défaut ; concurrence de 1 à 4 réglable par campagne. Un cas en erreur ou en timeout n'arrête pas la campagne. Bouton « Arrêter la campagne ». |
+| `lib/studio/tests/transcript.ts` | Session vers Markdown : en-tête du cas (suite, id, modèle, version du pack, durée), requête, attendu, réponse finale, appels d'outils. |
+| `lib/studio/tests/compare.ts` | Tableau cas × campagnes, avec les verdicts et un filtre par suite. |
+| `app/api/studio/packs/[pack]/tests/…` | Suites : GET, POST, PUT, PATCH, DELETE, et historique via la route `history` du lot 1, étendue à `tests/*.md`. |
+| `app/api/studio/packs/[pack]/runs/…` | Campagnes : `POST` lance une campagne ; `GET` liste les campagnes ou en lit une (avec sa progression) ; `POST …/stop` arrête ; `PUT …/verdicts` enregistre les verdicts ; `GET …/compare` donne la comparaison. |
+| `components/studio/tests/*` | Écrans de la rubrique Tests, en trois onglets. **Suites** : liste et éditeur en tableau, mode Markdown en mode avancé. **Campagnes** : lancement, suivi rafraîchi toutes les 2 s, revue cas par cas avec réponse, appels d'outils repliés, verdict OK, Partiel ou KO, commentaire et « Ouvrir la session ». **Comparaison**. |
+| `studio-templates/tests/suite.md` | Suite d'exemple de la spec. |
+| Tests | `parse.test.mjs`, `runs.test.mjs`, `runner.test.mjs` (avec l'exécuteur factice : séquence, timeout, erreur, arrêt, reprise après redémarrage), routes, i18n, e2e (deux campagnes, comparaison, verdicts relus après relance du serveur). |
+
+**Intégration réelle sans LLM**, testable dans le cloud : un test lance `piExecutor` contre un faux serveur compatible OpenAI, comme au §9.2.
+
+- Il vérifie la vraie session pi-web, le modèle imposé, le nom `[test]`, l'export du transcript et les jetons.
+- Un second faux serveur, qui ne répond jamais, vérifie que le cas passe en `timeout` et que la campagne continue (critère d'acceptation 2).
+
+**Modifiés :**
+
+| Fichier | Modification | Amont ? |
+|---|---|---|
+| `lib/studio/paths.ts`, `history.ts`, `packs.ts` | Les fichiers `tests/*.md` rejoignent la liste blanche ; le parcours « Évaluer » est calculé. | Non, code Studio |
+| `lib/studio/i18n/fr.ts`, `en.ts` | Clés `studio.tests.*` et `studio.runs.*`. | Non |
+| `components/studio/PackWorkshop.tsx` | La rubrique Tests est branchée et n'affiche plus « bientôt ». | Non |
+| Aucun fichier amont | Le préfixe `[test]` suffit ; aucune modification de la barre latérale de pi-web. | — |
+
+### 11.4 Critères d'acceptation du lot 2 et vérifications
+
+| Critère | Dans le cloud | En local |
+|---|---|---|
+| Une suite de 4 cas sur deux modèles ; la comparaison affiche les deux colonnes | e2e avec l'exécuteur factice, et intégration avec deux faux modèles | Avec Qwen3-VL-8B et un second modèle |
+| Les verdicts survivent à un redémarrage | Test : relecture de `run.json` après redémarrage simulé | `docker compose restart` |
+| Un cas qui dépasse le timeout est marqué `timeout` et la campagne continue | Intégration avec un faux serveur muet | Avec un timeout court (30 s) sur une question longue |
+
+### 11.5 Questions sur le lot 2
+
+**Q-L2-1 — Outils MCP bloqués en lecture seule (important pour le lot 3).** pi-web considère `["read"]` comme une sélection en lecture seule. Il bloque alors tout outil MCP qui ne déclare pas `readOnlyHint: true` (`lib/mcp-read-only-policy.ts`, ADR 0006). De nombreux serveurs ne déclarent pas cette annotation. Avec le défaut décidé (`read` + MCP), ces outils seraient refusés pendant les campagnes. Trois options :
+
+- (a) garder ce blocage : seuls les outils MCP annotés en lecture seule servent dans les tests ;
+- (b) le pack élargit son jeu d'outils (`tests.tools`) quand un serveur n'est pas annoté ;
+- (c) les sessions de test du Studio ne passent pas par ce blocage. Cela demande une modification amont de `rpc-manager.ts`, à justifier.
+
+Je recommande (a) par défaut, avec un avertissement clair dans la revue du cas (« outil bloqué : le serveur ne le déclare pas en lecture seule »). On réévaluera au lot 3, face aux vrais serveurs.
+
+**Q-L2-2 — Les suites lisibles par l'agent.** Les suites se trouvent dans le pack (`tests/`), donc à la portée de l'outil `read` de l'agent testé, attendus compris. Avec `read` seul, le modèle ne peut pas lister les dossiers et ignore où elles se trouvent : le risque est faible. Avec `bash`, il devient réel. Deux options :
+
+- (a) garder `tests/`, comme le prévoit la spec, et avertir quand `tests.tools` contient `bash`, `ls` ou `find` ;
+- (b) déplacer les suites dans `.studio/tests/`. Cela ne réduit le risque que légèrement, puisque l'outil `read` lit n'importe quel chemin.
+
+Je recommande (a).
+
+**Q-L2-3 — Suivi en temps réel.** Je propose un rafraîchissement toutes les 2 secondes plutôt qu'un flux SSE : c'est plus simple et suffisant pour des cas qui durent des dizaines de secondes. D'accord ?
+
+**Q-L2-4 — Redémarrage pendant une campagne.** Les cas `en-cours` passent en `erreur` (« interrompue »), et la campagne n'est pas relancée automatiquement. Un bouton « Relancer les cas non terminés » crée une nouvelle campagne. D'accord ?
+
+**Q-L2-5 — Réglages par campagne.** La maquette montre une température et un nombre maximal de jetons par test. Pi ne permet pas de les régler par session, seulement par modèle dans `models.json` (`samplingParams`). Je propose de ne retenir que le niveau de raisonnement (`thinkingLevel`) par campagne, et de laisser température et jetons à la configuration du modèle. D'accord ?
+
+**Q-L2-6 — Notation automatique** (question ouverte 3 de la spec) : je suis la proposition de la spec, **pas de notation automatique** dans le MVP, seulement le verdict humain.
+
+**Q-L2-7 — Choix du modèle.** Un modèle par campagne. Pour comparer deux modèles, on lance deux campagnes. Faut-il pouvoir lancer la même campagne sur plusieurs modèles d'un seul geste ? Elle serait alors découpée en campagnes successives, une par modèle.
+
+**Q-L2-8 — Sessions de test dans pi-web.** Elles s'appellent `[test] <pack> · <id du cas> · <modèle>` et se regroupent sous le projet du dépôt des packs, au milieu des sessions de travail. Le préfixe suffit-il, ou faut-il un filtre dans la barre latérale ? Le filtre serait une modification amont autorisée (§4), mais elle ajoute du code dans `SessionSidebar.tsx`.
 
