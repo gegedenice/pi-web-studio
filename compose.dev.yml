@@ -1,0 +1,34 @@
+# PI Studio, test local (Windows + Docker Desktop, ou Linux).
+#   docker compose -f compose.dev.yml up --build
+# Procédure complète : docs/studio/TEST-LOCAL.md
+name: pi-studio-dev
+
+services:
+  pi-studio:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        PI_VERSION: "1.2.0"
+    image: pi-studio:dev
+    init: true
+    restart: unless-stopped
+    # Mot de passe et identité : .env (copie de .env.example), jamais dans l'image.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      STUDIO_HOME: "true"
+      STUDIO_PACKS_DIR: /workspace/packs
+      PI_CODING_AGENT_DIR: /root/.pi/agent
+      STUDIO_USERS_FILE: /config/studio-users.json
+    volumes:
+      - ./dev/workspace:/workspace
+      - ./dev/pi-agent:/root/.pi/agent
+      - ./docker/studio-users.dev.json:/config/studio-users.json:ro
+    # Local seulement : le Studio n'est joignable que depuis cette machine.
+    ports:
+      - "127.0.0.1:30141:30141"
+    # llama.cpp tourne sur l'hôte : http://host.docker.internal:<port>/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

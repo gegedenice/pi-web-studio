@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getLocalePlugin, getSupportedLocales, resolveBrowserLocale } from "@/lib/i18n/registry";
+import { getLocalePlugin, getRegisteredLocales, getSupportedLocales, resolveBrowserLocale } from "@/lib/i18n/registry";
 import { translateMessage } from "@/lib/i18n/format";
 import type { Locale, LocalePlugin, TranslationParams } from "@/lib/i18n/types";
 
@@ -17,43 +17,56 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function getMessages(): Record<string, Record<string, string>> {
-  return Object.fromEntries(getSupportedLocales().flatMap((id) => {
+type MessagesByLocale = Record<string, Record<string, string>>;
+
+function getMessages(extraMessages?: MessagesByLocale): MessagesByLocale {
+  const messages: MessagesByLocale = Object.fromEntries(getRegisteredLocales().flatMap((id) => {
     const plugin = getLocalePlugin(id);
     return plugin ? [[id, plugin.messages]] : [];
   }));
+  for (const [id, extra] of Object.entries(extraMessages ?? {})) {
+    messages[id] = { ...messages[id], ...extra };
+  }
+  return messages;
 }
 
-function readInitialLocale(): Locale {
+function readInitialLocale(defaultLocale?: Locale): Locale {
   try {
     const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (stored === "en" || stored === "zh-CN" || stored === "zh-TW") return stored;
+    if (stored && getLocalePlugin(stored)) return stored as Locale;
   } catch {
     // 隐私模式或存储不可用时继续使用浏览器语言。
   }
+  if (defaultLocale) return defaultLocale;
   return resolveBrowserLocale(window.navigator.languages.length ? window.navigator.languages : [window.navigator.language]);
 }
 
 /**
  * 提供 Pi Web 的界面语言状态和翻译能力。
+ * PI Studio (fork): `defaultLocale` replaces browser detection when no
+ * language was chosen, and `extraMessages` adds a page's own keys.
  * @param props React 子节点
  * @returns 包含语言上下文的 React 节点
  */
-export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(defaultLocale);
+export function I18nProvider({ children, defaultLocale: pageLocale, extraMessages }: {
+  children: React.ReactNode;
+  defaultLocale?: Locale;
+  extraMessages?: MessagesByLocale;
+}) {
+  const [locale, setLocaleState] = useState<Locale>(pageLocale ?? defaultLocale);
   const [hydrated, setHydrated] = useState(false);
   const supportedLocales = useMemo(
     () => getSupportedLocales().map((id) => getLocalePlugin(id)).filter((plugin): plugin is LocalePlugin => Boolean(plugin)),
     [],
   );
-  const messages = useMemo(() => getMessages(), []);
+  const messages = useMemo(() => getMessages(extraMessages), [extraMessages]);
 
   useEffect(() => {
-    const next = readInitialLocale();
+    const next = readInitialLocale(pageLocale);
     setLocaleState(next);
     document.documentElement.lang = next;
     setHydrated(true);
-  }, []);
+  }, [pageLocale]);
 
   const setLocale = useCallback((next: Locale) => {
     if (!getLocalePlugin(next)) return;
@@ -67,7 +80,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const t = useCallback((key: string, params?: TranslationParams) => translateMessage(locale, key, messages, params), [locale, messages]);
-  const value = useMemo(() => ({ locale: hydrated ? locale : defaultLocale, setLocale, t, supportedLocales }), [hydrated, locale, setLocale, t, supportedLocales]);
+  const value = useMemo(() => ({ locale: hydrated ? locale : pageLocale ?? defaultLocale, setLocale, t, supportedLocales }), [hydrated, locale, pageLocale, setLocale, t, supportedLocales]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
