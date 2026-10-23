@@ -598,3 +598,11 @@ Vérifications :
 - Un llama.cpp distant est indiqué comme une option : seule la `baseUrl` change.
 - Les commandes ne supposent plus le nom de provider `llamacpp-hote`.
 - V9 décrit le nouveau comportement et les étapes qui le constatent.
+
+### 10.3 Second passage (2026-10-23)
+
+- **Build de l'image** : un premier essai a échoué en plein `npm run build` (`rpc error … EOF`), parce que le moteur Docker s'est arrêté, sans erreur de code. Le build suivant a réussi.
+- **V8 et V9** : ✅ Navigation entre Pi Web et le Studio correcte après le correctif du §10.1.
+- **V1** : ✅ Pour le pack `literature-review`, sans skill, le prompt système affiché par Pi Web (bouton « System prompt ») ne contient aucun bloc `<available_skills>`. Les skills citées par le modèle quand on l'interroge sont inventées. TEST-LOCAL.md V1 s'appuie désormais sur ce constat et sur `list-skills.mjs`, jamais sur la réponse du modèle.
+- Reste à faire en local : V10 à V12. V3 et V4 se feront au déploiement.
+
