@@ -6,14 +6,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { setLastSettingsSection } from "@/lib/settings-navigation";
 import { errorMessage, packPath, studioFetch } from "@/lib/studio/client";
+import type { PackValidation } from "@/lib/studio/release/validate";
 import type { ExternalChange, JourneyStepState, PackDetails, SkillSummary } from "@/lib/studio/types";
 import { ConfigurationSection } from "./ConfigurationSection";
 import { FileEditor } from "./FileEditor";
 import { PackHistory } from "./HistoryPanel";
 import { SkillsSection } from "./SkillsSection";
 import { StudioHeader } from "./StudioHeader";
-import { ConfirmDialog, Dialog, IssueBadge, Notice, useAdvancedMode, ValidationList } from "./StudioUi";
+import { ConfirmDialog, Notice, useAdvancedMode } from "./StudioUi";
 import { McpSection } from "./mcp/McpSection";
+import { ExportDialog, PublishDialog, PublishedVersions, ValidationDialog } from "./release/ReleaseDialogs";
 import { TestsSection } from "./tests/TestsSection";
 
 const SECTIONS = ["instructions", "skills", "mcp", "tests", "configuration", "history", "providers"] as const;
@@ -55,6 +57,9 @@ export function PackWorkshop({ packId }: { packId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [validating, setValidating] = useState(false);
+  const [publishing, setPublishing] = useState<PackValidation | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [published, setPublished] = useState<string | null>(null);
   const dirtyRef = useRef(false);
   const describePath = useDescribePath();
 
@@ -122,6 +127,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
         advanced={advanced}
         onAdvancedChange={setAdvanced}
         onValidate={() => setValidating(true)}
+        onExport={() => setExporting("")}
       />
       <div className="studio-workshop">
         <nav className="studio-nav" aria-label={t("studio.nav.label")}>
@@ -145,6 +151,11 @@ export function PackWorkshop({ packId }: { packId: string }) {
           <Journey pack={pack} />
         </nav>
         <main className="studio-main">
+          {published && (
+            <Notice kind="info" actions={<button type="button" className="studio-button" onClick={() => setExporting(published)}>{t("studio.release.export")}</button>}>
+              {t("studio.release.published", { version: published })}
+            </Notice>
+          )}
           <ExternalChangesBanner packId={packId} changes={pack.externalChanges} describePath={describePath} onDone={changed} />
           {!pack.piLoadsProject && <Notice kind="warning">{t("studio.trust.notLoaded")}</Notice>}
           {section === "instructions" && (
@@ -162,7 +173,12 @@ export function PackWorkshop({ packId }: { packId: string }) {
             />
           )}
           {section === "configuration" && <ConfigurationSection pack={pack} advanced={advanced} onSaved={changed} onDirtyChange={onDirtyChange} />}
-          {section === "history" && <PackHistory packId={packId} refreshKey={refreshKey} onRestored={changed} describePath={describePath} />}
+          {section === "history" && (
+            <>
+              <PublishedVersions packId={packId} refreshKey={refreshKey} onExport={(version) => setExporting(version)} />
+              <PackHistory packId={packId} refreshKey={refreshKey} onRestored={changed} describePath={describePath} />
+            </>
+          )}
           {section === "providers" && <ProvidersSection />}
           {section === "tests" && (
             <TestsSection packId={packId} pack={pack} skills={skills} advanced={advanced} item={item} onNavigate={(next) => navigate("tests", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
@@ -172,7 +188,24 @@ export function PackWorkshop({ packId }: { packId: string }) {
           )}
         </main>
       </div>
-      {validating && <ValidationDialog packId={packId} pack={pack} skills={skills} onClose={() => setValidating(false)} />}
+      {validating && (
+        <ValidationDialog
+          packId={packId}
+          onClose={() => setValidating(false)}
+          onNavigate={(next) => { setValidating(false); navigate(next); }}
+          onPublish={(validation) => { setValidating(false); setPublishing(validation); }}
+        />
+      )}
+      {publishing && (
+        <PublishDialog
+          packId={packId}
+          pack={pack}
+          validation={publishing}
+          onClose={() => setPublishing(null)}
+          onPublished={(outcome) => { setPublishing(null); setPublished(outcome.version.version); changed(); }}
+        />
+      )}
+      {exporting !== null && <ExportDialog packId={packId} initialVersion={exporting || undefined} onClose={() => setExporting(null)} />}
     </div>
   );
 }
@@ -320,62 +353,5 @@ function ExternalChangesBanner({ packId, changes, describePath, onDone }: {
         />
       )}
     </>
-  );
-}
-
-interface PiCheck {
-  projectResourcesLoaded: boolean;
-  skills: string[];
-  diagnostics: { type: string; message: string; path?: string }[];
-}
-
-function ValidationDialog({ packId, pack, skills, onClose }: { packId: string; pack: PackDetails; skills: SkillSummary[]; onClose: () => void }) {
-  const { t } = useI18n();
-  const [piCheck, setPiCheck] = useState<PiCheck | null>(null);
-  const [piError, setPiError] = useState<string | null>(null);
-  useEffect(() => {
-    studioFetch<PiCheck>(packPath(packId, "/pi-check")).then(setPiCheck).catch((cause) => setPiError(errorMessage(cause, t)));
-  }, [packId, t]);
-
-  const checks = [
-    { ok: pack.instructions.agents, label: t("studio.check.agents") },
-    { ok: pack.instructions.prompt, label: t("studio.check.prompt") },
-    { ok: skills.length > 0, label: t("studio.check.skills") },
-  ];
-  const missingInPi = piCheck?.projectResourcesLoaded ? skills.filter((skill) => !piCheck.skills.includes(skill.name)).map((skill) => skill.name) : [];
-  return (
-    <Dialog title={t("studio.check.title")} onClose={onClose} footer={<button type="button" className="studio-button" onClick={onClose}>{t("studio.common.close")}</button>}>
-      <ul className="studio-checks">
-        {checks.map((check) => (
-          <li key={check.label} className={check.ok ? "is-ok" : "is-error"}>
-            <span className={`studio-badge ${check.ok ? "is-ok" : "is-error"}`}>{check.ok ? t("studio.check.ok") : t("studio.check.missing")}</span>
-            {check.label}
-          </li>
-        ))}
-      </ul>
-      {skills.map((skill) => (
-        <section key={skill.name} className="studio-check-skill">
-          <h3 className="studio-subtitle">{t("studio.files.skill", { name: skill.name })} <IssueBadge issues={skill.issues} /></h3>
-          <ValidationList issues={skill.issues} />
-        </section>
-      ))}
-      <section className="studio-check-skill">
-        <h3 className="studio-subtitle">{t("studio.check.piTitle")}</h3>
-        {piError && <Notice kind="error">{piError}</Notice>}
-        {!piCheck && !piError && <p className="studio-muted">{t("studio.common.loading")}</p>}
-        {piCheck && !piCheck.projectResourcesLoaded && <Notice kind="warning">{t("studio.trust.notLoaded")}</Notice>}
-        {piCheck?.projectResourcesLoaded && (
-          <>
-            <p>{piCheck.skills.length ? t("studio.check.piSkills", { list: piCheck.skills.join(", ") }) : t("studio.check.piNoSkills")}</p>
-            {missingInPi.length > 0 && <Notice kind="warning">{t("studio.check.piMissing", { list: missingInPi.join(", ") })}</Notice>}
-            {piCheck.diagnostics.length > 0 && (
-              <ul className="studio-plain-list studio-mono">
-                {piCheck.diagnostics.map((item, index) => <li key={index}>{item.path ? `${item.path} : ` : ""}{item.message}</li>)}
-              </ul>
-            )}
-          </>
-        )}
-      </section>
-    </Dialog>
   );
 }

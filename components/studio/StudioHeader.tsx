@@ -6,11 +6,12 @@ import { useI18n } from "@/hooks/useI18n";
 import { studioFetch } from "@/lib/studio/client";
 import type { PackDetails, StudioIdentityInfo } from "@/lib/studio/types";
 
-export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate }: {
+export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onExport }: {
   pack?: PackDetails;
   advanced?: boolean;
   onAdvancedChange?: (value: boolean) => void;
   onValidate?: () => void;
+  onExport?: () => void;
 }) {
   const { t } = useI18n();
   const [me, setMe] = useState<StudioIdentityInfo | null>(null);
@@ -43,6 +44,7 @@ export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate }: {
           </label>
         )}
         {onValidate && <button type="button" className="studio-button" onClick={onValidate}>{t("studio.header.validate")}</button>}
+        {onExport && <button type="button" className="studio-button" onClick={onExport}>{t("studio.release.export")}</button>}
         <Link className="studio-button" href="/?pi-web">{t("studio.header.back")}</Link>
       </div>
     </header>

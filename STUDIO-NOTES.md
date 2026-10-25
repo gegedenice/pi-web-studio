@@ -1040,3 +1040,40 @@ Le bouton « Exporter » de l'en-tête (masqué depuis Q13) réapparaît. Il ouv
 
 **Q-L4-8 — Versions et historique.** Restaurer « le pack entier à une version publiée » n'est pas demandé par la spec. Je propose de ne pas l'ajouter : l'Historique permet déjà de restaurer fichier par fichier. D'accord ?
 
+### 15.8 Décisions (2026-10-25)
+
+Recommandations retenues telles quelles : Q-L4-1 publication refusée tant qu'il reste du rouge ; Q-L4-2 orange accepté après une case à cocher, statut `valide` seulement si tout est vert ; Q-L4-3 la première publication publie la version en cours, puis on incrémente le dernier chiffre, avec « version majeure » ; Q-L4-4 inspection des serveurs actifs à chaque validation, en parallèle ; Q-L4-5 publication refusée tant que le bandeau « Modifié en dehors du Studio » est affiché ; Q-L4-6 l'export garde `tests/` et `.studio/pack.json` et exclut seulement `.studio/runs/` par défaut ; Q-L4-7 secrets cherchés dans `.pi/mcp.json` et `.pi/settings.json` ; Q-L4-8 pas de restauration du pack entier.
+
+## 16. Lot 4 — livraison (2026-10-25)
+
+### 16.1 Ce qui est livré
+
+- **Valider** (en-tête) : la liste du §15.2, verte, orange ou rouge, avec le détail de chaque point et un lien vers la rubrique qui le corrige. Les serveurs MCP actifs sont interrogés à chaque validation. Le bouton « Publier une version… » reste grisé tant qu'il reste du rouge.
+- **Publier une version** : numéro proposé (version en cours ou suivante, ou version majeure), note obligatoire, case « Publier malgré les points à vérifier » s'il reste de l'orange, et le statut qui passera ou non à « Validé ». Un commit « Publie la version 0.2 », puis le tag annoté `<pack>/v0.2`, au nom de la personne connectée, avec la note pour message.
+- **Exporter** (en-tête, et chaque version de l'Historique) : choix de la version publiée, case « Inclure les résultats des campagnes de tests », téléchargement de `<pack>-v<version>.zip`.
+- **Historique du pack** : la partie « Versions publiées » (version, date, autrice, note, « Exporter »).
+- **Moteur** (`lib/studio/release/`) : `validate.ts`, `secrets.ts`, `publish.ts`, `export.ts` ; `lib/studio/git.ts` reçoit `createTag()`, `tagExists()`, `listTags()` et `archiveZip()`. Routes : `validate` (POST), `versions` (GET, POST), `export` (GET).
+
+### 16.2 Écarts au plan du §15 et choix à connaître
+
+- Les quatre écrans sont dans un seul fichier, `components/studio/release/ReleaseDialogs.tsx`. L'ancien dialogue de validation de `PackWorkshop.tsx` est remplacé ; la route `pi-check` reste, mais il n'y fait plus appel (« Skill … : Pi ne la charge pas » vient du même chargeur de pi-web).
+- Le commit de publication est créé même quand `pack.json` ne change pas (première publication d'un pack déjà au statut voulu), pour que chaque version publiée ait son propre enregistrement dans l'Historique.
+- Les versions publiées sont classées par numéro, pas par date : deux publications dans la même seconde restent dans l'ordre.
+- Pour `.pi/settings.json`, seules les clés nommées comme un identifiant (`apiKey`, `token`…) sont contrôlées : un identifiant de modèle comme `Qwen3-VL-8B-Instruct-GGUF` ressemble assez à une clé pour donner une fausse alerte.
+- Un tag `<pack>/v…` posé à la main est listé comme une version publiée s'il est annoté ; l'export refuse toujours une version qui contient un secret.
+- L'archive est produite par `git archive` : aucune nouvelle dépendance, aucun fichier amont modifié.
+
+### 16.3 Tests
+
+- **Unitaires et routes** : `lib/studio/release/release.test.mjs` (5 : secrets ; validation verte, orange, rouge avec inspections factices ; pack non approuvé, consignes vides, suite cassée, `AGENTS.md` parent, campagne avec KO ; publication, ses refus, version, statut, commit, tag et auteur ; export de la version taguée seule, sans campagnes sauf option, refus d'un secret), `app/api/studio/routes.test.mjs` (+1), `lib/studio/i18n.test.mjs`. Tous verts.
+- **e2e** : lots 1 à 3, puis validation (le faux serveur MCP est interrogé), publication de la 0.1 après la case des avertissements, téléchargement de l'archive et contrôle de son contenu (`unzip -Z1`), « Versions publiées », et `git tag -n1`.
+
+### 16.4 Critères d'acceptation du lot 4
+
+| Critère | Statut |
+|---|---|
+| La validation affiche la liste verte, orange, rouge, serveurs MCP joignables compris. | ✅ Unitaire et e2e. En local : V21. |
+| Publier incrémente la version, crée le tag `<pack>/v<version>`, passe à `valide` si tout est vert, avec une note. | ✅ Unitaire, routes, e2e. En local : V22. |
+| L'export d'une version taguée, sans `.studio/runs/` (option pour les inclure) et sans secret. | ✅ Unitaire, routes, e2e. En local : V23. |
+| Le pack exporté reste utilisable sans le Studio. | À vérifier en local : V24. |
+

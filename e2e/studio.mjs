@@ -355,6 +355,48 @@ try {
     });
     assert.equal(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s", "--", `${packId}/.pi/mcp.json`], { encoding: "utf8" }).trim(), `[${packId}] Ajoute serveur MCP biblio`);
     console.log("studio e2e: lot 3 ok (command refused, server added and inspected)");
+
+    // 12. Lot 4: validate (the MCP server is queried), publish 0.1 despite the warnings, export it.
+    await page.getByRole("button", { name: "Valider", exact: true }).click();
+    const checkDialog = page.getByRole("dialog");
+    await checkDialog.getByText("Des points sont à vérifier, mais le pack peut être publié.").waitFor({ timeout: 60_000 });
+    await checkDialog.getByText("Les 1 serveur(s) MCP actifs répondent.").waitFor();
+    await checkDialog.getByText("Aucune valeur secrète en clair dans la configuration.").waitFor();
+    await visibleTextIsPlain(page, "validation lot 4");
+    await page.screenshot({ path: join(artifacts, "10-validation.png") });
+    await checkDialog.getByRole("button", { name: "Publier une version…" }).click();
+    const publishDialog = page.getByRole("dialog");
+    await publishDialog.getByText("Version 0.1 (version en cours : 0.1)").waitFor();
+    await publishDialog.getByLabel("Note de version (obligatoire)").fill("Première version testée sur deux modèles.");
+    assert.equal(await publishDialog.getByRole("button", { name: "Publier la version 0.1" }).isDisabled(), true, "warnings must be accepted first");
+    await publishDialog.getByText("Publier malgré les points à vérifier").click();
+    await publishDialog.getByRole("button", { name: "Publier la version 0.1" }).click();
+    await page.getByText("Version 0.1 publiée.").waitFor();
+    await page.getByText("v0.1").first().waitFor();
+
+    await page.getByRole("banner").getByRole("button", { name: "Exporter" }).click();
+    const exportDialog = page.getByRole("dialog");
+    await exportDialog.getByLabel("Version").waitFor();
+    await visibleTextIsPlain(page, "export dialog");
+    const [download] = await Promise.all([page.waitForEvent("download"), exportDialog.getByRole("button", { name: "Télécharger" }).click()]);
+    assert.equal(download.suggestedFilename(), `${packId}-v0.1.zip`);
+    const zipPath = join(artifacts, "export.zip");
+    await download.saveAs(zipPath);
+    const entries = execFileSync("unzip", ["-Z1", zipPath], { encoding: "utf8" }).trim().split("\n");
+    for (const expected of ["AGENTS.md", ".pi/APPEND_SYSTEM.md", ".pi/mcp.json", ".pi/skills/openalex-search/SKILL.md", "tests/recherche-documentaire.md", ".studio/pack.json"]) {
+      assert.ok(entries.includes(`${packId}-v0.1/${expected}`), `${expected} in the export`);
+    }
+    assert.equal(entries.some((entry) => entry.includes(".studio/runs/")), false, "no campaign results by default");
+    await exportDialog.getByRole("button", { name: "Fermer" }).click();
+
+    await page.getByRole("navigation").getByRole("button", { name: "Historique" }).click();
+    await page.getByText("Versions publiées").waitFor();
+    await page.getByText("Première version testée sur deux modèles.").waitFor();
+    await visibleTextIsPlain(page, "published versions");
+    await page.screenshot({ path: join(artifacts, "11-versions.png") });
+    const tag = execFileSync("git", ["-C", packsDir, "tag", "-n1", "--list", `${packId}/v*`], { encoding: "utf8" }).trim();
+    assert.match(tag, new RegExp(`^${packId}/v0\\.1\\s+Première version testée sur deux modèles\\.$`));
+    console.log("studio e2e: lot 4 ok (validation, publication 0.1, export)");
   }
 } catch (error) {
   console.error(error);

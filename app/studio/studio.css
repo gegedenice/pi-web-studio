@@ -572,3 +572,12 @@
   .studio-active-pack { border-left: 0; padding-left: 0; }
 }
 .studio-steps { margin: 6px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 2px; }
+
+/* Release (lot 4). */
+.studio-checks li { align-items: flex-start; }
+.studio-checks .studio-badge { min-width: 76px; text-align: center; }
+.studio-check-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.studio-check-details { font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+.studio-versions { display: flex; flex-direction: column; gap: 10px; }
+.studio-version-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.studio-version-note { display: block; margin-top: 2px; font-size: 13px; }

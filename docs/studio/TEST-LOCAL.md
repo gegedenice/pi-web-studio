@@ -414,6 +414,51 @@ Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
 - **Action** : dans Pi Web, ouvrez une session sur `/workspace/packs/essai`, puis les Réglages › MCP.
 - **Attendu** : le serveur `openalex` du pack est listé dans la partie projet, avec le même état. Les serveurs globaux désactivés dans le pack depuis le Studio y apparaissent désactivés pour ce projet.
 
+### Lot 4 — Valider, publier, exporter
+
+### V21 — Valider le pack
+
+- **Action** : dans le pack `essai`, cliquez sur « Valider » dans l'en-tête. Puis désactivez la variable du jeton d'un serveur (retirez-la du `.env`, redémarrez) et validez de nouveau.
+- **Attendu** :
+  - une ligne par contrôle, « OK », « À vérifier » ou « Bloquant » ; la ligne des serveurs MCP nomme chaque serveur actif et son nombre d'outils ;
+  - un lien vers la rubrique concernée sur chaque ligne qui n'est pas « OK » ;
+  - après la variable retirée : « … : la variable du jeton n'est pas définie dans le conteneur » en « À vérifier ».
+
+### V22 — Publier une version
+
+- **Action** : « Valider », puis « Publier une version… ». Écrivez une note, cochez « Publier malgré les points à vérifier » s'il le faut, puis publiez. Recommencez ensuite avec « Version majeure ».
+- **Attendu** :
+  - « Version 0.x publiée. », le numéro de l'en-tête mis à jour ;
+  - le statut passe à « Validé » seulement si toutes les lignes étaient « OK » ;
+  - dans l'Historique, « Versions publiées » montre les versions avec leur note.
+- **Commande** :
+
+  ```powershell
+  studio git -C /workspace/packs tag -n9 --list "essai/v*"
+  studio git -C /workspace/packs log --format="%an | %s" -3
+  ```
+
+### V23 — Exporter
+
+- **Action** : « Exporter », choisissez une version, téléchargez. Recommencez en cochant « Inclure les résultats des campagnes de tests ». Ouvrez les deux archives dans l'Explorateur Windows.
+- **Attendu** :
+  - un dossier `essai-v0.x` avec `AGENTS.md`, `.pi/` (consignes, skills, `mcp.json`), `tests/` et `.studio/pack.json` ;
+  - `.studio/runs/` seulement dans la seconde archive ;
+  - une modification enregistrée **après** la publication n'apparaît pas dans l'archive de cette version ;
+  - aucune valeur de jeton dans `.pi/mcp.json` (seulement `${NOM_DE_LA_VARIABLE}`).
+
+### V24 — Le pack exporté fonctionne sans le Studio
+
+- **Action** : copiez l'archive dans le conteneur, décompressez-la (l'image n'a pas `unzip`, Python s'en charge), puis lancez Pi en ligne de commande dedans (`-it` pour pouvoir lui écrire) :
+
+  ```powershell
+  docker compose -f compose.dev.yml cp .\essai-v0.1.zip pi-studio:/tmp/
+  docker compose -f compose.dev.yml exec -it pi-studio sh -c "cd /tmp && python3 -m zipfile -e essai-v0.1.zip . && cd essai-v0.1 && pi"
+  ```
+
+  Pi demande d'approuver le dossier : acceptez. Puis demandez « Quelles skills et quels outils MCP as-tu ? ».
+- **Attendu** : Pi cite les skills du pack et les outils `mcp__…` de ses serveurs (le jeton est lu dans la variable d'environnement du conteneur).
+
 ### V3 et V4 — Au déploiement
 
 Ces deux vérifications demandent le proxy d'authentification (Traefik avec forward-auth). Elles se font donc **au déploiement**, pas en local :
