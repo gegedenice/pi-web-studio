@@ -28,6 +28,7 @@ export type StudioAction =
   | { kind: "delete-mcp"; name: string }
   | { kind: "enable-global-mcp"; name: string }
   | { kind: "disable-global-mcp"; name: string }
+  | { kind: "publish"; version: string }
   | { kind: "keep-external"; paths: string[] }
   | { kind: "discard-external"; paths: string[] };
 
@@ -78,6 +79,7 @@ export function describeAction(action: StudioAction): string {
     case "delete-mcp": return `Supprime serveur MCP ${action.name}`;
     case "enable-global-mcp": return `Réactive dans le pack le serveur MCP global ${action.name}`;
     case "disable-global-mcp": return `Désactive dans le pack le serveur MCP global ${action.name}`;
+    case "publish": return `Publie la version ${action.version}`;
     case "keep-external": return "Enregistre les modifications faites hors Studio";
     case "discard-external": return "Annule les modifications faites hors Studio";
   }

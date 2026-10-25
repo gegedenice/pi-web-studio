@@ -245,3 +245,60 @@ export async function status(pathspec: string): Promise<StatusEntry[]> {
   }
   return entries;
 }
+
+/** An annotated tag on `rev`, its message the version note, tagged by `author`. Call inside `withPacksLock`. */
+export async function createTag(name: string, rev: string, message: string, author: GitAuthor): Promise<void> {
+  await git(["tag", "-a", name, rev, "-m", message], { env: authorEnv(author) });
+}
+
+export async function tagExists(name: string): Promise<boolean> {
+  try {
+    await git(["rev-parse", "--verify", "-q", `refs/tags/${name}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface TagEntry {
+  name: string;
+  tagger: string;
+  email: string;
+  date: string;
+  /** The commit the tag points to. */
+  rev: string;
+  message: string;
+}
+
+/** Annotated tags matching `pattern` (`refs/tags/<pack>/v*`), newest first. */
+export async function listTags(pattern: string): Promise<TagEntry[]> {
+  if (!(await hasHead())) return [];
+  const format = ["%(refname:short)", "%(taggername)", "%(taggeremail:trim)", "%(taggerdate:iso-strict)", "%(*objectname)", "%(contents)"].join("%1f");
+  const out = await git(["for-each-ref", "--sort=-taggerdate", `--format=${format}%1e`, pattern]);
+  return out.split("\x1e").map((record) => record.replace(/^\n/, "")).filter(Boolean).flatMap((record) => {
+    const [name, tagger, email, date, rev, message] = record.split("\x1f");
+    // A lightweight tag has no tagger and no peeled commit: not a Studio version.
+    if (!rev || !tagger) return [];
+    return [{ name, tagger, email, date, rev, message: (message ?? "").trim() }];
+  });
+}
+
+const ARCHIVE_MAX_BYTES = 256 * 1024 * 1024;
+
+/**
+ * A zip of `dir` (repository-relative) as `treeish` holds it, under `prefix/`,
+ * leaving out the `exclude` paths (relative to `dir`).
+ */
+export async function archiveZip(treeish: string, dir: string, prefix: string, exclude: string[]): Promise<Buffer> {
+  try {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["archive", "--format=zip", `--prefix=${prefix}/`, `${treeish}:${dir}`, "--", ".", ...exclude.map((path) => `:(exclude)${path}`)],
+      { cwd: packsRoot(), timeout: 60_000, maxBuffer: ARCHIVE_MAX_BYTES, encoding: "buffer", env: { ...process.env, LC_ALL: "C" } },
+    );
+    return stdout;
+  } catch (error) {
+    if ((error as { code?: string }).code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") throw new StudioError("exportTooLarge", 413);
+    throw error;
+  }
+}

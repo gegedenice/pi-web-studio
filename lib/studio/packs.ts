@@ -231,7 +231,7 @@ export async function updatePackConfig(packId: string, input: PackConfigInput, a
   });
 }
 
-function nonEmpty(packId: string, relPath: string): boolean {
+export function nonEmpty(packId: string, relPath: string): boolean {
   try {
     return Boolean(readPackText(resolvePackPath(packId, relPath))?.trim());
   } catch {

@@ -213,3 +213,40 @@ test("lot 3 through the API: a server added, refused as stdio, switched, inspect
   assert.equal(res.status, 200);
   assert.equal(gitIn(packsDir, "log", "-1", "--format=%s").trim(), "[lr] Supprime serveur MCP openalex");
 });
+
+const validateRoute = await jiti.import("./packs/[pack]/validate/route.ts");
+const versionsRoute = await jiti.import("./packs/[pack]/versions/route.ts");
+const exportRoute = await jiti.import("./packs/[pack]/export/route.ts");
+const { trustPacksDirectory } = await import("../../../lib/studio/trust-packs.mjs");
+
+test("lot 4 through the API: validate, publish refused then done, versions listed, export downloaded", async (t) => {
+  const { base, packsDir } = setupStudioEnv(t);
+  quiet(t);
+  await packsRoute.POST(request("POST", "/packs", { id: "lr", title: "Revue" }));
+  const pack = params({ pack: "lr" });
+  await skillsRoute.POST(request("POST", "/x", { name: "openalex-search", description: "Recherche OpenAlex." }), pack);
+
+  let res = await json(await validateRoute.POST(request("POST", "/x", {}), pack));
+  assert.deepEqual([res.body.validation.level, res.body.validation.checks[0]], ["error", { id: "trust", level: "error", key: "trustMissing" }]);
+  res = await json(await versionsRoute.POST(request("POST", "/x", { note: "v1", acceptWarnings: true }), pack));
+  assert.deepEqual([res.status, res.body.code], [422, "publishBlocked"]);
+  res = await json(await exportRoute.GET(request("GET", "/packs/lr/export"), pack));
+  assert.deepEqual([res.status, res.body.code], [404, "exportNoVersion"]);
+
+  trustPacksDirectory({ agentDir: join(base, "agent"), packsDir });
+  res = await json(await versionsRoute.POST(request("POST", "/x", { note: "v1" }), pack));
+  assert.deepEqual([res.status, res.body.code], [409, "publishWarnings"]);
+  res = await json(await versionsRoute.POST(request("POST", "/x", { note: "Première version", acceptWarnings: true }), pack));
+  assert.deepEqual([res.status, res.body.version.version, res.body.validated], [201, "0.1", false]);
+  res = await json(await versionsRoute.GET(request("GET", "/packs/lr/versions"), pack));
+  assert.deepEqual([res.body.versions.map((item) => item.version), res.body.next], [["0.1"], { minor: "0.2", major: "1.0" }]);
+
+  const zip = await exportRoute.GET(request("GET", "/packs/lr/export?version=0.1"), pack);
+  assert.equal(zip.status, 200);
+  assert.equal(zip.headers.get("content-type"), "application/zip");
+  assert.equal(zip.headers.get("content-disposition"), 'attachment; filename="lr-v0.1.zip"');
+  assert.equal(Buffer.from(await zip.arrayBuffer()).subarray(0, 2).toString(), "PK");
+  res = await json(await exportRoute.GET(request("GET", "/packs/lr/export?version=3.0"), pack));
+  assert.deepEqual([res.status, res.body.code], [404, "versionNotFound"]);
+  assert.equal(gitIn(packsDir, "tag", "-n1").trim(), "lr/v0.1         Première version");
+});
