@@ -15,9 +15,10 @@ export const APPEND_SYSTEM_FILE = ".pi/APPEND_SYSTEM.md";
 export const SYSTEM_FILE = ".pi/SYSTEM.md";
 export const SETTINGS_FILE = ".pi/settings.json";
 export const AGENTS_FILE = "AGENTS.md";
+export const MCP_CONFIG_FILE = ".pi/mcp.json";
 
 /** Files the generic file route reads and writes; skills and pack.json have their own routes. */
-export const EDITABLE_PACK_FILES = [AGENTS_FILE, APPEND_SYSTEM_FILE, SYSTEM_FILE, SETTINGS_FILE] as const;
+export const EDITABLE_PACK_FILES = [AGENTS_FILE, APPEND_SYSTEM_FILE, SYSTEM_FILE, SETTINGS_FILE, MCP_CONFIG_FILE] as const;
 
 export function assertPackId(value: unknown): string {
   if (!isSlug(value)) throw new StudioError("invalidPackId", 400);

@@ -20,6 +20,14 @@ export type StudioAction =
   | { kind: "delete-suite"; name: string }
   | { kind: "run-finished"; runId: string; summary: string }
   | { kind: "verdicts"; runId: string; count: number }
+  | { kind: "add-mcp"; name: string }
+  | { kind: "edit-mcp"; name: string }
+  | { kind: "rename-mcp"; from: string; to: string }
+  | { kind: "enable-mcp"; name: string }
+  | { kind: "disable-mcp"; name: string }
+  | { kind: "delete-mcp"; name: string }
+  | { kind: "enable-global-mcp"; name: string }
+  | { kind: "disable-global-mcp"; name: string }
   | { kind: "keep-external"; paths: string[] }
   | { kind: "discard-external"; paths: string[] };
 
@@ -28,6 +36,7 @@ const NOTE_MAX_LENGTH = 200;
 function fileLabel(path: string): string {
   if (path === ".pi/APPEND_SYSTEM.md" || path === ".pi/SYSTEM.md") return "consignes système";
   if (path === ".pi/settings.json") return "réglages Pi";
+  if (path === ".pi/mcp.json") return "serveurs MCP";
   const skill = /^\.pi\/skills\/([^/]+)\/SKILL\.md$/.exec(path);
   if (skill) return `skill ${skill[1]}`;
   const suite = /^tests\/([^/]+)\.md$/.exec(path);
@@ -61,6 +70,14 @@ export function describeAction(action: StudioAction): string {
     case "delete-suite": return `Supprime suite ${action.name}`;
     case "run-finished": return `Campagne ${action.runId} : ${action.summary}`;
     case "verdicts": return `Verdicts de la campagne ${action.runId} (${action.count} cas)`;
+    case "add-mcp": return `Ajoute serveur MCP ${action.name}`;
+    case "edit-mcp": return `Modifie serveur MCP ${action.name}`;
+    case "rename-mcp": return `Renomme serveur MCP ${action.from} en ${action.to}`;
+    case "enable-mcp": return `Active serveur MCP ${action.name}`;
+    case "disable-mcp": return `Désactive serveur MCP ${action.name}`;
+    case "delete-mcp": return `Supprime serveur MCP ${action.name}`;
+    case "enable-global-mcp": return `Réactive dans le pack le serveur MCP global ${action.name}`;
+    case "disable-global-mcp": return `Désactive dans le pack le serveur MCP global ${action.name}`;
     case "keep-external": return "Enregistre les modifications faites hors Studio";
     case "discard-external": return "Annule les modifications faites hors Studio";
   }

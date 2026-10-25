@@ -48,7 +48,8 @@ export interface RunFile {
   startedAt: string;
   finishedAt?: string;
   status: RunStatus;
-  options: { timeoutMs: number; concurrency: number; tools: string[]; thinkingLevel?: string };
+  /** `mcpTools`: "all" lifts pi-web's block on MCP tools without readOnlyHint; absent in campaigns before lot 3 (read-only). */
+  options: { timeoutMs: number; concurrency: number; tools: string[]; mcpTools?: "all" | "read-only"; thinkingLevel?: string };
   cases: RunCase[];
 }
 

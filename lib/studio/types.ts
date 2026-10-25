@@ -18,7 +18,12 @@ export interface PackMeta {
   owners: string[];
   createdAt: string;
   /** Lot 2: the tools test sessions get (pi's coding tools); `["read"]` when absent. */
-  tests?: { tools: string[] };
+  /**
+   * Test sessions: pi's coding tools (default `read`), and `mcpTools: "read-only"`
+   * to keep pi-web's rule blocking MCP tools without readOnlyHint (default: all
+   * the pack's MCP tools, STUDIO-NOTES Q-L3-1).
+   */
+  tests?: { tools?: string[]; mcpTools?: "read-only" };
 }
 
 export interface PackSummary extends PackMeta {

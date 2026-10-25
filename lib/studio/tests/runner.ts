@@ -77,6 +77,7 @@ export function planCampaign(packId: string, input: StartCampaignInput) {
     timeoutMs: integerIn(input.timeoutMs, 10_000, MAX_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     concurrency: integerIn(input.concurrency, 1, MAX_CONCURRENCY, 1),
     tools: meta.tests?.tools?.length ? meta.tests.tools : DEFAULT_TEST_TOOLS,
+    mcpTools: meta.tests?.mcpTools === "read-only" ? "read-only" as const : "all" as const,
   };
 }
 
@@ -102,6 +103,7 @@ async function runCase(packId: string, packDir: string, run: RunFile, item: RunC
     model: run.model,
     thinkingLevel: run.options.thinkingLevel,
     tools: run.options.tools,
+    mcpReadOnly: run.options.mcpTools !== "all",
     timeoutMs: run.options.timeoutMs,
     signal,
     sessionName: `[test] ${packId} · ${item.id} · ${run.model.id}`,
@@ -205,6 +207,7 @@ export async function startCampaign(packId: string, input: StartCampaignInput, a
       timeoutMs: plan.timeoutMs,
       concurrency: plan.concurrency,
       tools: plan.tools,
+      mcpTools: plan.mcpTools,
       ...(plan.thinkingLevel ? { thinkingLevel: plan.thinkingLevel } : {}),
     },
     cases: plan.cases,

@@ -13,6 +13,8 @@ export interface CaseRequest {
   model: { provider: string; id: string };
   thinkingLevel?: string;
   tools: string[];
+  /** False lifts pi-web's block on MCP tools without readOnlyHint (the pack's choice, Q-L3-1). */
+  mcpReadOnly: boolean;
   timeoutMs: number;
   /** Aborted when the campaign is stopped. */
   signal: AbortSignal;

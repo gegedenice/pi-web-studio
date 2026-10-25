@@ -60,8 +60,10 @@ export function parsePackMeta(id: string, text: string): PackMeta {
     owners: Array.isArray(data.owners) ? data.owners.filter((owner): owner is string => typeof owner === "string").slice(0, 20) : [],
     createdAt: typeof data.createdAt === "string" ? data.createdAt : "",
     ...(() => {
-      const tools = testTools((data.tests as { tools?: unknown } | undefined)?.tools);
-      return tools ? { tests: { tools } } : {};
+      const tests = data.tests as { tools?: unknown; mcpTools?: unknown } | undefined;
+      const tools = testTools(tests?.tools);
+      const readOnly = tests?.mcpTools === "read-only";
+      return tools || readOnly ? { tests: { ...(tools ? { tools } : {}), ...(readOnly ? { mcpTools: "read-only" as const } : {}) } } : {};
     })(),
   };
 }
@@ -138,6 +140,8 @@ export interface PackConfigInput {
   defaultModel?: { provider: unknown; modelId: unknown } | null;
   /** Test sessions' tools; `null` restores the default (`read`). */
   testTools?: unknown;
+  /** "all" (default) or "read-only": MCP tools test sessions may call. */
+  testMcpTools?: unknown;
   note?: unknown;
 }
 
@@ -179,14 +183,22 @@ export async function updatePackConfig(packId: string, input: PackConfigInput, a
       if (!isPackStatus(input.status)) throw new StudioError("invalidStatus", 400);
       next.status = input.status;
     }
-    if (input.testTools !== undefined) {
-      if (input.testTools === null) delete next.tests;
-      else {
+    if (input.testTools !== undefined || input.testMcpTools !== undefined) {
+      const tests = { ...next.tests };
+      if (input.testTools === null) delete tests.tools;
+      else if (input.testTools !== undefined) {
         const tools = testTools(input.testTools);
         if (!tools || (Array.isArray(input.testTools) && tools.length !== input.testTools.length)) throw new StudioError("invalidTools", 400);
-        if (tools.length === 1 && tools[0] === "read") delete next.tests;
-        else next.tests = { tools };
+        if (tools.length === 1 && tools[0] === "read") delete tests.tools;
+        else tests.tools = tools;
       }
+      if (input.testMcpTools !== undefined) {
+        if (input.testMcpTools === "read-only") tests.mcpTools = "read-only";
+        else if (input.testMcpTools === "all" || input.testMcpTools === null) delete tests.mcpTools;
+        else throw new StudioError("invalidTools", 400);
+      }
+      if (Object.keys(tests).length) next.tests = tests;
+      else delete next.tests;
     }
     const paths: string[] = [];
     if (JSON.stringify(next) !== JSON.stringify(meta)) {
@@ -229,14 +241,19 @@ function nonEmpty(packId: string, relPath: string): boolean {
 
 /**
  * Concevoir: ready with instructions, a system prompt and one valid skill.
- * Évaluer is computed by the caller from the suites and campaigns (lot 2).
- * Connecter comes with lot 3.
+ * Évaluer (lot 2) and Connecter (lot 3) are computed by the caller.
  */
-export function packJourney(packId: string, validSkills: number, anySkill: boolean, evaluate: PackJourney["evaluate"] = "todo"): PackJourney {
+export function packJourney(
+  packId: string,
+  validSkills: number,
+  anySkill: boolean,
+  evaluate: PackJourney["evaluate"] = "todo",
+  connect: PackJourney["connect"] = "todo",
+): PackJourney {
   const agents = nonEmpty(packId, AGENTS_FILE);
   const prompt = nonEmpty(packId, APPEND_SYSTEM_FILE) || nonEmpty(packId, SYSTEM_FILE);
   const design = agents && prompt && validSkills > 0 ? "ready" : agents || prompt || anySkill ? "progress" : "todo";
-  return { design, connect: "later", evaluate };
+  return { design, connect, evaluate };
 }
 
 /** Files of the pack changed outside the Studio (sessions, hand edits), relative to the pack. */
@@ -256,6 +273,7 @@ export async function packDetails(
   packId: string,
   skills: { valid: number; total: number },
   evaluate: PackJourney["evaluate"] = "todo",
+  connect: PackJourney["connect"] = "todo",
 ): Promise<PackDetails> {
   const id = assertPackId(packId);
   const meta = readPackMeta(id);
@@ -264,7 +282,7 @@ export async function packDetails(
   return {
     meta,
     updatedAt: await lastCommitDate(repoPath(id)),
-    journey: packJourney(id, skills.valid, skills.total > 0, evaluate),
+    journey: packJourney(id, skills.valid, skills.total > 0, evaluate, connect),
     piLoadsProject: trust.trusted,
     promptFiles: {
       append: existsSync(resolvePackPath(id, APPEND_SYSTEM_FILE)),

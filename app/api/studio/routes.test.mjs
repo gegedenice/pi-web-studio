@@ -179,3 +179,37 @@ test("lot 2 through the API: suites, a campaign's verdicts, comparison, test too
   const log = gitIn(packsDir, "log", "--format=%s", "--", "lr/tests", "lr/.studio/runs").trim().split("\n").map((line) => line.replace(/ \(version du .*\)$/, ""));
   assert.deepEqual(log, [`[lr] Verdicts de la campagne ${runId} (2 cas)`, `[lr] Campagne ${runId} : 2 cas, 2 terminés`, "[lr] Modifie suite recherche", "[lr] Crée suite recherche"]);
 });
+
+const mcpRoute = await jiti.import("./packs/[pack]/mcp/route.ts");
+const mcpServerRoute = await jiti.import("./packs/[pack]/mcp/[server]/route.ts");
+const mcpInspectRoute = await jiti.import("./packs/[pack]/mcp/[server]/inspect/route.ts");
+
+test("lot 3 through the API: a server added, refused as stdio, switched, inspected without its token, deleted", async (t) => {
+  const { packsDir } = setupStudioEnv(t);
+  quiet(t);
+  await packsRoute.POST(request("POST", "/packs", { id: "lr", title: "Revue" }));
+  const pack = params({ pack: "lr" });
+  const form = { name: "openalex", url: "https://mcp.example.fr/mcp", description: "", auth: "bearer-env", tokenVariable: "STUDIO_ROUTE_TOKEN", timeout: null };
+
+  let res = await json(await mcpRoute.POST(request("POST", "/x", { server: { command: "npx", args: ["-y", "srv"] } }), pack));
+  assert.deepEqual([res.status, res.body.code, res.body.params], [422, "mcpTransportRefused", { transport: "stdio" }]);
+  res = await json(await mcpRoute.POST(request("POST", "/x", { server: { ...form, url: "npx -y srv" } }), pack));
+  assert.deepEqual([res.status, res.body.code, res.body.issues.map((issue) => issue.code)], [422, "validationFailed", ["urlCommand"]]);
+  res = await json(await mcpRoute.POST(request("POST", "/x", { server: form }), pack));
+  assert.equal(res.status, 201);
+  assert.deepEqual(res.body.server.form.tokenVariable, "STUDIO_ROUTE_TOKEN");
+
+  const server = params({ pack: "lr", server: "openalex" });
+  res = await json(await mcpServerRoute.PATCH(request("PATCH", "/x", { enabled: false }), server));
+  assert.equal(res.body.server.enabled, false);
+  res = await json(await mcpServerRoute.PATCH(request("PATCH", "/x", { enabled: true }), server));
+  res = await json(await mcpInspectRoute.POST(request("POST", "/x", {}), server));
+  assert.equal(res.body.inspection.state, "variable-missing");
+  res = await json(await mcpRoute.GET(request("GET", "/x"), pack));
+  assert.deepEqual(res.body.servers.map((item) => [item.name, item.enabled, item.tokenVariableSet]), [["openalex", true, false]]);
+  res = await json(await mcpServerRoute.PUT(request("PUT", "/x", { server: { ...form, description: "Nouvelle" }, baseHash: "x" }), server));
+  assert.deepEqual([res.status, res.body.code], [409, "conflict"]);
+  res = await json(await mcpServerRoute.DELETE(request("DELETE", "/x"), server));
+  assert.equal(res.status, 200);
+  assert.equal(gitIn(packsDir, "log", "-1", "--format=%s").trim(), "[lr] Supprime serveur MCP openalex");
+});

@@ -41,6 +41,7 @@ export const piExecutor: CaseExecutor = {
     try {
       started_ = await startRpcSession(`__studio_test__${randomUUID()}`, "", request.packDir, {
         toolNames: request.tools,
+        ...(request.mcpReadOnly ? {} : { mcpReadOnlyPolicy: false }),
         initialModel: { provider: request.model.provider, modelId: request.model.id },
         ...(request.thinkingLevel ? { thinkingLevel: request.thinkingLevel as never } : {}),
       });

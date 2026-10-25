@@ -7,6 +7,7 @@ import {
   assertPackId,
   assertSkillName,
   isEditablePackFile,
+  MCP_CONFIG_FILE,
   packRelative,
   repoPath,
   resolvePackPath,
@@ -15,6 +16,7 @@ import {
   skillFileRel,
   splitRelativePath,
 } from "./paths";
+import { rawMcpFileRefusal } from "./mcp/policy";
 import { withSkillName } from "./skill-file";
 import { validateSkillFile } from "./skills";
 import type { DeletedSkill, ExternalChange, HistoryEntry, TextDocument } from "./types";
@@ -74,6 +76,11 @@ export async function writeEditableFile(
     } catch {
       throw new StudioError("settingsInvalid", 422);
     }
+  }
+  if (rel === MCP_CONFIG_FILE) {
+    const refusal = rawMcpFileRefusal(content);
+    if (refusal?.code === "mcpRawTransport") throw new StudioError(refusal.code, 422, { name: refusal.name, transport: refusal.transport });
+    if (refusal) throw new StudioError(refusal.code, 422);
   }
   return withPacksLock(async () => {
     readPackMeta(id);

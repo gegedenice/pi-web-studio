@@ -1,4 +1,5 @@
-import { packDetails, updatePackConfig } from "@/lib/studio/packs";
+import { connectStep, listMcpServers } from "@/lib/studio/mcp/servers";
+import { packDetails, readDefaultModel, updatePackConfig } from "@/lib/studio/packs";
 import { identityOf, readJsonBody, studioHandle } from "@/lib/studio/route";
 import { listSkills } from "@/lib/studio/skills";
 import { evaluateStep } from "@/lib/studio/tests/compare";
@@ -17,7 +18,8 @@ export async function GET(_req: Request, { params }: Params) {
     const skills = listSkills(pack);
     const valid = skills.filter((skill) => !hasErrors(skill.issues)).length;
     const evaluate = evaluateStep(listSuiteNames(pack).length, await readRuns(pack));
-    return { pack: await packDetails(pack, { valid, total: skills.length }, evaluate), skills };
+    const connect = connectStep(await listMcpServers(pack), readDefaultModel(pack) !== null);
+    return { pack: await packDetails(pack, { valid, total: skills.length }, evaluate, connect), skills };
   });
 }
 
@@ -37,6 +39,7 @@ export async function PATCH(req: Request, { params }: Params) {
       status: body.status,
       defaultModel,
       testTools: body.testTools,
+      testMcpTools: body.testMcpTools,
       note: body.note,
     }, identityOf(req));
     return { meta };
