@@ -933,3 +933,110 @@ Le rebond du Studio vers Pi Web fonctionne. La page de retour d'openalex.org, `h
 
 Pi Web a prévu ce cas : la ligne « Sign in » montre toujours le champ « Address the browser landed on ». On y colle l'adresse de la page qui ne s'affiche pas, puis « Continue ». La marche à suivre du Studio et TEST-LOCAL (V17 bis) le disent désormais. Aucun changement de code au-delà de ces textes.
 
+V17 bis est validée par l'intégratrice (2026-10-25) : connexion OAuth faite dans Pi Web, puis inspection et campagne du Studio avec le serveur OpenAlex. Le lot 3 est validé.
+
+## 15. Lot 4 : plan proposé (2026-10-25, à relire avant le code)
+
+Même méthode que pour les lots 2 et 3 : fichiers, tests, puis questions. Rien n'est codé tant que le plan n'est pas relu.
+
+### 15.1 Ce que le lot 4 réutilise
+
+| Besoin | Point d'entrée | Constat |
+|---|---|---|
+| Contrôles du pack | `listSkills()` / `validateSkillFile()` (lot 1), `readSuite()` (lot 2), `listMcpServers()` et `inspectMcpServer()` (lot 3), `readRuns()` (lot 2), `getProjectTrustStatus()` et la route `pi-check` (lot 1) | Tout existe : la validation du lot 4 assemble ces résultats en une liste verte, orange ou rouge. |
+| Secrets | `literalSecretFields()` et `looksLikeSecretValue()` (`lib/mcp-secrets.ts` de pi-web) | Repèrent une valeur littérale (jeton, mot de passe) dans `env` et `headers` d'une entrée MCP. Le Studio n'en écrit jamais, mais un fichier modifié à la main peut en contenir. |
+| Version et tag | `withPacksLock()`, `commitPackChange()` (lot 1), plus `git tag -a` (nouveau, dans `lib/studio/git.ts`) | Tag annoté `<pack>/v<version>` sur le commit de publication ; la note de version en est le message, l'auteur du tag la personne connectée. Le Studio ne pousse jamais (STUDIO.md §10.5). |
+| Archive | `git archive --format=zip --prefix=<pack>-v<version>/ <tag>:<pack> -- . ':(exclude).studio/runs'` | Essayé : l'archive reprend exactement la version taguée, sans les fichiers non enregistrés ni `.studio/runs/`. **Aucune nouvelle dépendance** (`jszip` n'est présent que par `mammoth`). |
+
+### 15.2 Valider le pack
+
+Le bouton « Valider » existant devient le contrôle global du lot 4, en liste verte, orange ou rouge :
+
+| Contrôle | Rouge (bloquant) | Orange (avertissement) |
+|---|---|---|
+| Pi charge le pack | Dossier non approuvé | — |
+| Contexte et consignes | `AGENTS.md` ou prompt système vide | — |
+| Skills | Une skill a un problème bloquant ; aucune skill | Avertissements (liens relatifs…) ; une skill que Pi ne charge pas |
+| Serveurs MCP : fichier | `.pi/mcp.json` mal formé ; une entrée refusée par Pi ; une entrée lancée par une commande ou en SSE | Une entrée « configurée hors du Studio » (OAuth, autres en-têtes) |
+| Serveurs MCP : joignables | Un serveur actif dont l'inspection échoue ou dépasse le délai | Connexion par compte à faire ; jeton absent du conteneur |
+| Secrets | Une valeur littérale de jeton ou de mot de passe dans `.pi/mcp.json` ou `.pi/settings.json` | — |
+| Suites de tests | Une suite avec un problème bloquant | Aucune suite |
+| Dernière campagne | — | Un cas `ko`, ou des cas non jugés ; aucune campagne |
+| Dossiers parents | — | Un `AGENTS.md` ou `CLAUDE.md` au-dessus du pack, qui s'appliquerait sans faire partie de l'export (écart E6) |
+| Modifications hors Studio | — | Le bandeau « Modifié en dehors du Studio » est affiché (la validation porte sur ce qui est enregistré) |
+
+Les inspections MCP sont lancées par la validation (Q-L4-4). Chaque ligne dit quoi corriger et mène à la rubrique concernée.
+
+### 15.3 Publier une version
+
+Depuis le dialogue de validation : « Publier une version… », avec une note de version obligatoire (texte libre).
+
+1. La validation est relancée côté serveur au moment de publier.
+2. `version` de `pack.json` passe à la version suivante (Q-L4-3).
+3. Le statut passe à `valide` si la validation est entièrement verte (Q-L4-2).
+4. Un commit « Publie la version 0.5 », puis le tag annoté `literature-review/v0.5`, dont le message est la note.
+5. Refus si le tag existe déjà, ou dans les cas de Q-L4-1 et Q-L4-5.
+
+L'Historique du pack reçoit une partie « Versions publiées » : version, date, autrice, note, et un bouton « Exporter ».
+
+### 15.4 Exporter
+
+Le bouton « Exporter » de l'en-tête (masqué depuis Q13) réapparaît. Il ouvre un dialogue : choix d'une version publiée (la dernière par défaut), case « Inclure les résultats des campagnes » (décochée), puis téléchargement de `literature-review-v0.5.zip`.
+
+- Contenu : le dossier du pack **tel qu'il était à la version taguée**, sous un dossier racine `literature-review-v0.5/`, sans `.studio/runs/` sauf si la case est cochée. Un pack non publié ne s'exporte pas.
+- Avant d'envoyer l'archive, le serveur relit `.pi/mcp.json` et `.pi/settings.json` **de cette version** et refuse s'ils contiennent une valeur secrète littérale.
+- L'archive est un projet Pi standard : décompressée n'importe où, `pi` y charge les consignes, les skills et les serveurs MCP (V24).
+
+### 15.5 Fichiers
+
+**Créés :**
+
+| Fichier | Contenu |
+|---|---|
+| `lib/studio/release/validate.ts` | `validatePack(packId, inspector)` : la liste des contrôles du §15.2, chacun avec un niveau, un code traduit, des paramètres et la rubrique à ouvrir. Fonction testable avec l'inspecteur factice du lot 3. |
+| `lib/studio/release/secrets.ts` | Recherche des valeurs secrètes littérales dans le texte de `.pi/mcp.json` et `.pi/settings.json` (fichier courant ou d'une version). |
+| `lib/studio/release/publish.ts` | Version suivante, `publishVersion()`, `listPublishedVersions()` (lecture des tags du pack). |
+| `lib/studio/release/export.ts` | `exportVersion(packId, version, { runs })` : contrôle des secrets, puis flux zip de `git archive`. |
+| `app/api/studio/packs/[pack]/validate/route.ts` | POST : lance la validation (inspections comprises). |
+| `app/api/studio/packs/[pack]/versions/route.ts` | GET versions publiées, POST publier. |
+| `app/api/studio/packs/[pack]/export/route.ts` | GET `?version=&runs=` : le fichier zip. |
+| `components/studio/release/ValidationDialog.tsx`, `PublishDialog.tsx`, `ExportDialog.tsx`, `PublishedVersions.tsx` | Les écrans. L'actuel `ValidationDialog` de `PackWorkshop.tsx` y est déplacé et étendu. |
+| Tests | `validate.test.mjs`, `publish.test.mjs` (version, tag, statut, refus, auteur du tag), `export.test.mjs` (contenu de l'archive par `unzip -l`, exclusion des campagnes, refus d'un secret), routes, i18n, e2e. |
+
+**Modifiés :**
+
+| Fichier | Modification | Amont ? |
+|---|---|---|
+| `lib/studio/git.ts` | `createTag()`, `listTags()`, `archiveZip()` (`execFile`, comme le reste). | Non |
+| `lib/studio/commit-message.ts` | Action `publish` : « Publie la version 0.5 ». | Non |
+| `components/studio/StudioHeader.tsx`, `PackWorkshop.tsx`, `HistoryPanel.tsx` | Bouton « Exporter » ; « Versions publiées » dans l'Historique du pack. | Non |
+| `lib/studio/i18n/fr.ts`, `en.ts` | Clés `studio.release.*`. | Non |
+| Aucun fichier amont | | — |
+
+### 15.6 Critères d'acceptation et vérifications
+
+| Critère (STUDIO.md lot 4) | Dans le cloud | En local |
+|---|---|---|
+| La validation affiche la liste verte, orange, rouge, avec les serveurs MCP joignables | Unitaire (inspecteur factice) et e2e (faux serveur MCP) | V21 avec les vrais serveurs |
+| Publier incrémente la version, crée le tag `<pack>/v<version>`, passe à `valide` si tout est vert, avec une note | Unitaire, routes, e2e (`git tag -n`) | V22 |
+| L'export d'une version taguée, sans `.studio/runs/` (option pour les inclure) et sans secret | Unitaire (`unzip -l`), e2e (téléchargement) | V23 |
+| Le pack exporté reste utilisable sans le Studio | — | V24 : décompresser l'archive, lancer `pi` dedans, vérifier skills et serveurs MCP |
+
+### 15.7 Questions sur le lot 4
+
+**Q-L4-1 — Publier avec des contrôles rouges.** La spec dit seulement que le statut passe à `valide` si la validation est verte. Je propose de **refuser la publication tant qu'il reste du rouge** : une version publiée doit au moins être chargeable par Pi et sans secret. D'accord ?
+
+**Q-L4-2 — Statut et avertissements.** Je propose : publication possible avec de l'orange, après une case « Publier malgré les avertissements » ; le statut ne passe à `valide` que si tout est vert, sinon il reste ce qu'il était, et le dialogue le dit. D'accord ?
+
+**Q-L4-3 — Numéro de version.** `pack.json` commence à `0.1`. Je propose : la première publication publie la version en cours (`0.1`) ; les suivantes incrémentent le dernier chiffre (`0.1` → `0.2`, `0.9` → `0.10`), avec un choix « version majeure » (`0.4` → `1.0`). D'accord, ou faut-il toujours incrémenter, même la première fois ?
+
+**Q-L4-4 — Inspection des serveurs pendant la validation.** Je propose de les inspecter à chaque validation, en parallèle (20 s au plus chacune), plutôt que de reprendre la dernière inspection. Un serveur désactivé n'est pas inspecté. D'accord ?
+
+**Q-L4-5 — Modifications hors Studio au moment de publier.** Je propose de refuser la publication tant que le bandeau « Modifié en dehors du Studio » est affiché (« Conserver » ou « Annuler » d'abord), pour que la version publiée soit exactement ce que l'on a vu. D'accord ?
+
+**Q-L4-6 — Contenu de l'export.** Je propose d'inclure `tests/` (les suites) et `.studio/pack.json` (titre, version, statut), et d'exclure seulement `.studio/runs/` par défaut, comme le dit la spec. Faut-il aussi exclure les suites ou la fiche du pack ?
+
+**Q-L4-7 — Secrets.** Je propose de contrôler `.pi/mcp.json` et `.pi/settings.json` (valeurs littérales d'en-têtes, de variables d'environnement, de clés d'API), pas le texte des consignes ou des skills, où un faux positif serait fréquent. D'accord ?
+
+**Q-L4-8 — Versions et historique.** Restaurer « le pack entier à une version publiée » n'est pas demandé par la spec. Je propose de ne pas l'ajouter : l'Historique permet déjà de restaurer fichier par fichier. D'accord ?
+
