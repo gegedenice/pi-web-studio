@@ -760,3 +760,105 @@ Recommandations retenues telles quelles :
 | Les verdicts survivent à un redémarrage. | ✅ `runner.test.mjs` (tout est relu depuis les fichiers, rien en mémoire) ; e2e après rechargement. En local : V15. |
 | Un cas qui dépasse le délai est marqué `timeout` et la campagne continue. | ✅ `runner.test.mjs` et intégration (modèle muet). En local : V16. |
 
+### 12.5 Test local (2026-10-25)
+
+L'intégratrice a passé V13 à V16 avec un vrai modèle (llama.cpp) : rien à corriger. Le lot 2 est validé.
+
+## 13. Lot 3 : plan proposé (2026-10-25, à relire avant le code)
+
+Ce plan suit la même méthode que pour le lot 2 (STUDIO.md §10.3) : fichiers, tests, puis questions. Rien n'est codé tant qu'il n'est pas relu.
+
+### 13.1 Ce que le lot 3 réutilise de pi-web
+
+| Besoin | Point d'entrée | Constat |
+|---|---|---|
+| Écrire `.pi/mcp.json` | `editMcpConfigFile()`, `insertMcpServer()`, `removeMcpServer()`, `setMcpServersEnabled()`, `setMcpServerExposure()` (`lib/mcp-config-file.ts`), cible `{ scope: "project", cwd: <pack>, allowedRoots: { <dépôt des packs> } }` | Verrou, écriture atomique, indentation conservée, refus typés (`unparsable`, `name-taken`, `link-outside`…). Le Studio y ajoute son propre verrou du dépôt et un commit, comme pour les autres fichiers. |
+| Valider une entrée comme Pi | `validateMcpServerConfig()` du SDK, via `loadPiSdkInternals()` (`lib/pi-sdk-internals.ts`), et `readMcpServerEntry()` / `readMcpServerConfig()` (`lib/mcp-entry-request.ts`, `lib/mcp-config-read.ts`) | « Accepté par le Studio » implique « chargé par Pi ». Les noms qui entrent en collision (`a-b` et `a_b`) sont refusés comme le fait le chargeur. |
+| Inspecter | `testMcpServer()` (`lib/mcp-test.ts`) : connexion bornée (15 s par requête, 20 s au total), `initialize` puis `tools/list`, messages masqués, statut enregistré pour Settings › MCP | Le résultat de pi-web ne garde que la première ligne de la description et **pas le schéma** des outils. Le Studio passe sa propre fonction `connect` (option prévue par `testMcpServer`) : `openTestConnection()` puis `observeTestConnection()`, et il lit au passage les outils complets de la connexion (description, `inputSchema`, annotations) avant de la fermer. File d'attente, délai et statut restent ceux de pi-web. **Aucune modification amont.** |
+| Contrôles avant connexion | `mcpProjectTrustRefusal()`, `findWebPasswordField()` | Un pack non approuvé n'est pas inspecté (même message que le bandeau du lot 1). Une entrée qui cite `PI_WEB_PASSWORD` est refusée. |
+| Sessions de test | `McpHost` (`lib/mcp-host.ts`) | Les sessions du lot 2 chargent déjà `.pi/mcp.json` du pack (projet approuvé) et attendent jusqu'à 10 s les serveurs `direct` avant le premier prompt. Rien à changer, sauf la politique de lecture seule (Q-L3-1). |
+
+### 13.2 Ce que le Studio écrit
+
+Une entrée du format `mcpServers` du MCP intégré de Pi, par exemple :
+
+```json
+{
+  "mcpServers": {
+    "openalex": {
+      "url": "https://mcp.example.fr/mcp",
+      "description": "Découverte bibliographique dans OpenAlex.",
+      "headers": { "Authorization": "Bearer ${OPENALEX_TOKEN}" },
+      "exposure": "direct"
+    }
+  }
+}
+```
+
+- **Transport** : seulement `url` en `http://` ou `https://`. `command` (stdio) et `type: "sse"` sont refusés, dans le formulaire, dans l'éditeur brut et par la route, avec un message qui dit que ces serveurs se configurent hors du Studio. Le MCP intégré n'a pas de repli SSE (écart E2 levé).
+- **Authentification** : `Aucune`, ou `Jeton Bearer via variable d'environnement`. Le Studio n'enregistre que le nom de la variable (`^[A-Z_][A-Z0-9_]*$`) dans `"Authorization": "Bearer ${NOM}"`. Il indique si la variable existe dans l'environnement du serveur (oui ou non, jamais sa valeur) ; `PI_WEB_PASSWORD` est refusé.
+- **Exposition** : `"exposure": "direct"` à la création. En mode avancé, une exposition par outil (`toolExposure`), à partir de la liste de la dernière inspection (Q-L3-7), et le délai par requête (`timeout`).
+- **Activer / désactiver** : `enabled: false` dans l'entrée (le SDK retire la clé quand on réactive).
+- **Suppression** : avec confirmation ; restauration par l'historique du lot 1.
+- Chaque changement = un commit : `[pack] Ajoute serveur MCP openalex`, `Modifie…`, `Active…`, `Désactive…`, `Supprime…`.
+
+### 13.3 Fichiers
+
+**Créés :**
+
+| Fichier | Contenu |
+|---|---|
+| `lib/studio/mcp/policy.ts` | Fonctions pures : identifiant, URL, nom de variable, refus `command` / `sse` / `auth.provider` / OAuth, construction de l'entrée depuis le formulaire et lecture inverse (une entrée hors politique est signalée comme « configurée hors du Studio »). Codes d'erreur traduits. |
+| `lib/studio/mcp/servers.ts` | Lister (serveurs du pack, avec leur état et la présence de la variable ; serveurs globaux, voir Q-L3-2), ajouter, modifier, activer, désactiver, supprimer, via `lib/mcp-config-file.ts`, sous le verrou du dépôt, un commit par changement. Validation SDK avant écriture. |
+| `lib/studio/mcp/inspect.ts` | Interface injectable `McpInspector` : `piInspector` (§13.1) et un inspecteur factice pour les tests. Résultat : état (`connecté`, `connexion OAuth demandée`, `échec`, `délai dépassé`), message en français, `serverInfo`, outils (nom, description complète, annotation lecture seule, exposition, schéma). |
+| `app/api/studio/packs/[pack]/mcp/route.ts` | GET liste, POST ajout. |
+| `app/api/studio/packs/[pack]/mcp/[server]/route.ts` | GET, PUT (formulaire), PATCH (`enabled`, renommage), DELETE. |
+| `app/api/studio/packs/[pack]/mcp/[server]/inspect/route.ts` | POST : inspection. |
+| `components/studio/mcp/McpSection.tsx` | La rubrique, sur le modèle de la maquette : liste à gauche (état, interrupteur), carte « Serveur MCP » à droite avec le bandeau « Transport verrouillé : Streamable HTTP », l'endpoint, la description, l'authentification, puis « Inspecter tools/list » et la liste des outils (schéma replié dans `<details>`). Pas de version du protocole (le MCP intégré n'en a pas) ni d'« agents autorisés » (hors périmètre, lot 5). |
+| `components/studio/mcp/ToolExposureEditor.tsx` | Mode avancé : exposition par outil, et éditeur brut de `.pi/mcp.json` (le `FileEditor` du lot 1, validé à l'enregistrement par `policy.ts`). |
+| Tests | `policy.test.mjs`, `servers.test.mjs` (fichier, commits, refus, octets identiques à ceux des éditeurs du SDK), routes, i18n, **intégration** (§13.4), e2e. |
+
+**Modifiés :**
+
+| Fichier | Modification | Amont ? |
+|---|---|---|
+| `lib/studio/history.ts`, `commit-message.ts` | `.pi/mcp.json` a son propre éditeur ; messages de commit des serveurs ; libellé « Serveurs MCP » dans les historiques. | Non |
+| `lib/studio/packs.ts`, `types.ts` | Étape « Connecter » calculée (Q-L3-4). | Non |
+| `lib/studio/tests/pi-executor.ts`, `runner.ts` | Option de la politique de lecture seule (Q-L3-1). | Non |
+| `components/studio/PackWorkshop.tsx` | La rubrique MCP est branchée et n'affiche plus « bientôt » ; `describePath` pour `.pi/mcp.json`. | Non |
+| `lib/studio/i18n/fr.ts`, `en.ts` | Clés `studio.mcp.*`. | Non |
+| `lib/rpc-manager.ts`, `lib/mcp-read-only-policy.ts` | **Seulement si Q-L3-1 (b) est retenue** : une option `mcpReadOnlyPolicy: false` de `startRpcSession()`, utilisée par les sessions de test du Studio. Trois lignes environ, consignées au §8.2. | **Oui** |
+
+### 13.4 Tests et critères d'acceptation
+
+| Critère | Dans le cloud | En local |
+|---|---|---|
+| Ajout d'un serveur Streamable HTTP par le formulaire, inspection réussie | e2e contre un **faux serveur MCP Streamable HTTP** lancé par le script (`initialize`, `tools/list`, `tools/call`, réponses JSON), avec un jeton Bearer lu dans une variable d'environnement | Avec le serveur MCP réel de l'établissement |
+| Une session de test du pack appelle un de ses outils en exposition `direct` (`mcp__<serveur>__<outil>`) | Intégration : campagne d'un cas, faux modèle qui demande `mcp__<serveur>__<outil>` puis répond ; on vérifie l'appel reçu par le faux serveur, l'en-tête `Authorization`, et l'appel dans `run.json` et le transcript | Campagne d'un cas avec Qwen3-VL-8B, dont la requête demande d'utiliser l'outil |
+| Ajout d'un serveur stdio refusé avec un message clair | Unitaire, routes et e2e : une commande (`npx …`) dans le champ endpoint, une entrée `command` dans l'éditeur brut, une requête `command` envoyée à la route | Même chose |
+
+Vérifications locales à ajouter à TEST-LOCAL.md : V17 (ajout et inspection du vrai serveur), V18 (campagne qui appelle un outil), V19 (stdio refusé, serveur non joignable, variable manquante), V20 (Settings › MCP de pi-web montre les mêmes serveurs pour le pack).
+
+### 13.5 Questions sur le lot 3
+
+**Q-L3-1 — Les outils MCP sans `readOnlyHint` pendant les tests (décisif pour le critère d'acceptation).** Au lot 2, on a gardé le blocage de pi-web (Q-L2-1) : avec les outils `read`, une session est « en lecture seule » et tout outil MCP que son serveur ne déclare pas `readOnlyHint: true` est refusé. Beaucoup de serveurs ne le déclarent pas. Or le seul moyen d'en sortir avec les réglages actuels est de donner `bash`, `edit` ou `write` au modèle testé. Options :
+
+- (a) garder le blocage : seuls les outils annotés servent en test. L'inspection montre pour chaque outil « déclaré en lecture seule » ou « sera bloqué en test » ;
+- (b) un réglage du pack, dans Configuration : « Outils MCP pendant les tests : tous les outils du pack » ou « seulement ceux déclarés en lecture seule ». Il demande la petite option amont décrite au §13.3 ;
+- (c) donner un outil d'écriture au modèle quand le pack a des serveurs MCP. Déconseillé.
+
+Je recommande **(b)**, avec « tous les outils du pack » par défaut : les serveurs sont choisis par l'intégratrice et l'inspection montre l'annotation de chaque outil. Les sessions de travail de pi-web gardent leur règle.
+
+**Q-L3-2 — Les serveurs globaux.** Les serveurs de `~/.pi/agent/mcp.json` (Settings › MCP, portée globale) sont aussi chargés dans les sessions de test du pack, mais ne font pas partie du pack (ni de l'export du lot 4). Je propose de les afficher en lecture seule sous la liste, avec un interrupteur « Désactiver dans ce pack » (une entrée de surcharge `{ "enabled": false }` dans `.pi/mcp.json`, comme le fait `/mcp`). D'accord ?
+
+**Q-L3-3 — Identifiant d'un serveur.** Il donne le nom des outils vus par le modèle (`mcp__openalex__search_works`). Je propose les mêmes règles que pour les skills : minuscules, chiffres et tirets, 64 caractères au plus. Renommer un serveur reste possible (les campagnes passées gardent l'ancien nom des outils).
+
+**Q-L3-4 — L'étape « Connecter » du parcours.** Je propose : « En cours » dès qu'un modèle par défaut ou un serveur est configuré ; « Prêt » quand le pack a un modèle par défaut et que chaque serveur actif est conforme et a réussi une inspection depuis le démarrage du serveur. Un pack sans serveur MCP peut être « Prêt ». Faut-il au contraire exiger au moins un serveur ?
+
+**Q-L3-5 — Entrées hors politique.** Une entrée écrite à la main (stdio, OAuth, `auth.provider`) reste dans le fichier : le Studio l'affiche « configurée hors du Studio », permet de l'activer, de la désactiver ou de la supprimer, mais pas de la modifier. L'éditeur brut du mode avancé refuse d'enregistrer une entrée stdio ou SSE. Une modification faite hors du Studio et « conservée » par le bandeau du lot 1 est acceptée telle quelle : c'est le geste de l'intégratrice. D'accord ?
+
+**Q-L3-6 — Code mode global.** Si Settings › Outils de pi-web règle le Code mode sur « toujours » (`codemode.mode: "only"`), les outils `direct` ne sont plus déclarés au modèle, qui ne les atteint que par des scripts. Je propose un avertissement dans la rubrique MCP quand c'est le cas, sans rien écrire. Faut-il plutôt que le pack fixe lui-même `codemode` dans `.pi/settings.json` ?
+
+**Q-L3-7 — Exposition par outil (mode avancé).** Je propose de n'offrir que `direct` et `hidden` (masquer un outil), les deux utiles à un petit modèle ; `deferred` et `codemode` restent affichés s'ils sont déjà dans le fichier. D'accord ?
+
+**Q-L3-8 — Coller une configuration.** pi-web sait importer une configuration collée (`lib/mcp-import*.ts` : JSON d'un autre client, ligne `claude mcp add …`). On pourrait proposer « Coller une configuration » à côté du formulaire, avec le même refus du stdio. Je propose de ne pas le faire au lot 3 (le formulaire suffit), sauf si vous le souhaitez.
