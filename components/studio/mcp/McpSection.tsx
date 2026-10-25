@@ -8,6 +8,7 @@ import { checkServerForm, MCP_FILE, type McpFormProblem, type McpServerForm } fr
 import type { GlobalMcpServer, McpOverview, McpServerSummary } from "@/lib/studio/mcp/servers";
 import { isSlug } from "@/lib/studio/slug";
 import type { PackDetails, ValidationIssue } from "@/lib/studio/types";
+import { setLastSettingsSection } from "@/lib/settings-navigation";
 import { FileEditor } from "../FileEditor";
 import { FileHistory } from "../HistoryPanel";
 import { SaveBar } from "../MarkdownEditor";
@@ -22,7 +23,8 @@ function stateOf(server: McpServerSummary): { key: string; tone: string } {
   if (server.outside) return { key: "outside", tone: "warning" };
   if (server.invalid) return { key: "invalid", tone: "error" };
   if (server.tokenVariable && !server.tokenVariableSet) return { key: "variableMissing", tone: "warning" };
-  if (!server.inspection) return { key: "toInspect", tone: "muted" };
+  if (!server.inspection) return { key: server.signedIn ? "signedIn" : "toInspect", tone: "muted" };
+  if (server.inspection.state === "needs-auth") return { key: "needsAuth", tone: "warning" };
   return server.inspection.ok ? { key: "inspected", tone: "ok" } : { key: "failed", tone: "error" };
 }
 
@@ -91,12 +93,12 @@ export function McpSection({ packId, pack, advanced, item, onSelect, onChanged, 
         </aside>
         <div className="studio-detail-pane">
           {selected === NEW && (
-            <ServerEditor key="new" packId={packId} pack={pack} advanced={advanced} onSaved={(name) => { changed(); onSelect(name); }} onDeleted={() => onSelect(null)} onDirtyChange={onDirtyChange} />
+            <ServerEditor key="new" packId={packId} packDir={overview.packDir} pack={pack} advanced={advanced} onSaved={(name) => { changed(); onSelect(name); }} onDeleted={() => onSelect(null)} onDirtyChange={onDirtyChange} />
           )}
           {current && current.form && (
-            <ServerEditor key={`${current.name}:${current.entryHash}`} packId={packId} pack={pack} advanced={advanced} server={current} onInspected={changed} onSaved={(name) => { changed(); onSelect(name); }} onDeleted={() => { changed(); onSelect(null); }} onDirtyChange={onDirtyChange} />
+            <ServerEditor key={`${current.name}:${current.entryHash}`} packId={packId} packDir={overview.packDir} pack={pack} advanced={advanced} server={current} onInspected={changed} onSaved={(name) => { changed(); onSelect(name); }} onDeleted={() => { changed(); onSelect(null); }} onDirtyChange={onDirtyChange} />
           )}
-          {current && !current.form && <OutsideServer key={current.name} packId={packId} pack={pack} server={current} onChanged={changed} onDeleted={() => { changed(); onSelect(null); }} />}
+          {current && !current.form && <OutsideServer key={current.name} packId={packId} packDir={overview.packDir} pack={pack} server={current} onChanged={changed} onDeleted={() => { changed(); onSelect(null); }} />}
           {!current && selected !== NEW && <p className="studio-muted studio-placeholder">{t("studio.mcp.emptyHint")}</p>}
         </div>
       </div>
@@ -158,8 +160,9 @@ function FieldProblems({ problems, field }: { problems: ValidationIssue[]; field
   return own.length ? <ValidationList issues={own} /> : null;
 }
 
-function ServerEditor({ packId, pack, advanced, server, onSaved, onDeleted, onDirtyChange, onInspected }: {
+function ServerEditor({ packId, packDir, pack, advanced, server, onSaved, onDeleted, onDirtyChange, onInspected }: {
   packId: string;
+  packDir: string;
   pack: PackDetails;
   advanced: boolean;
   server?: McpServerSummary;
@@ -290,6 +293,7 @@ function ServerEditor({ packId, pack, advanced, server, onSaved, onDeleted, onDi
               <option value="none">{t("studio.mcp.authNone")}</option>
               <option value="bearer-env">{t("studio.mcp.authBearer")}</option>
             </select>
+            {server?.signedIn && form.auth === "none" && <p className="studio-hint">{t("studio.mcp.signedIn")}</p>}
           </div>
           {form.auth === "bearer-env" && (
             <div className="studio-field">
@@ -356,7 +360,7 @@ function ServerEditor({ packId, pack, advanced, server, onSaved, onDeleted, onDi
                 : server.inspection ? t("studio.mcp.lastInspection", { date: formatStudioDate(server.inspection.at, locale), count: server.inspection.toolCount }) : t("studio.mcp.inspectHint")}
             </span>
           </div>
-          {inspection && <InspectionView inspection={inspection} readOnlyTests={readOnlyTests} />}
+          {inspection && <InspectionView inspection={inspection} readOnlyTests={readOnlyTests} packDir={packDir} serverName={server.name} />}
         </section>
       )}
       {deleting && server && (
@@ -366,8 +370,32 @@ function ServerEditor({ packId, pack, advanced, server, onSaved, onDeleted, onDi
   );
 }
 
-function InspectionView({ inspection, readOnlyTests }: { inspection: InspectionResult; readOnlyTests: boolean }) {
+/**
+ * An OAuth server (OpenAlex's, for instance): the Studio never signs in (STUDIO.md §8),
+ * pi-web does, in Settings › MCP for the pack's folder; its token then serves the
+ * Studio's inspection and test sessions too.
+ */
+function SignInHelp({ packDir, serverName }: { packDir: string; serverName: string }) {
   const { t } = useI18n();
+  return (
+    <Notice
+      kind="warning"
+      actions={<a className="studio-button is-primary" href={`/?cwd=${encodeURIComponent(packDir)}`} onClick={() => setLastSettingsSection("mcp")}>{t("studio.mcp.signIn.open")}</a>}
+    >
+      <strong>{t("studio.mcp.signIn.title")}</strong>
+      <ol className="studio-steps">
+        <li>{t("studio.mcp.signIn.step1")}</li>
+        <li>{t("studio.mcp.signIn.step2", { name: serverName })}</li>
+        <li>{t("studio.mcp.signIn.step3")}</li>
+      </ol>
+      <span className="studio-hint">{t("studio.mcp.signIn.note")}</span>
+    </Notice>
+  );
+}
+
+function InspectionView({ inspection, readOnlyTests, packDir, serverName }: { inspection: InspectionResult; readOnlyTests: boolean; packDir: string; serverName: string }) {
+  const { t } = useI18n();
+  if (inspection.state === "needs-auth") return <SignInHelp packDir={packDir} serverName={serverName} />;
   if (inspection.state !== "connected") {
     return (
       <Notice kind="error">
@@ -405,8 +433,9 @@ function InspectionView({ inspection, readOnlyTests }: { inspection: InspectionR
   );
 }
 
-function OutsideServer({ packId, pack, server, onChanged, onDeleted }: {
+function OutsideServer({ packId, packDir, pack, server, onChanged, onDeleted }: {
   packId: string;
+  packDir: string;
   pack: PackDetails;
   server: McpServerSummary;
   onChanged: () => void;
@@ -459,7 +488,7 @@ function OutsideServer({ packId, pack, server, onChanged, onDeleted }: {
               setInspection((await studioFetch<{ inspection: InspectionResult }>(`${serverPath(packId, server.name)}/inspect`, { method: "POST" })).inspection);
             })}>{t("studio.mcp.inspect")}</button>
           </div>
-          {inspection && <InspectionView inspection={inspection} readOnlyTests={pack.meta.tests?.mcpTools === "read-only"} />}
+          {inspection && <InspectionView inspection={inspection} readOnlyTests={pack.meta.tests?.mcpTools === "read-only"} packDir={packDir} serverName={server.name} />}
         </section>
       )}
       {deleting && <DeleteServer packId={packId} name={server.name} onClose={() => setDeleting(false)} onDeleted={() => { setDeleting(false); onDeleted(); }} />}

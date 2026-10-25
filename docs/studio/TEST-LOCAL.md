@@ -374,6 +374,19 @@ Vérifiez que la variable passe bien au conteneur (`compose.dev.yml` doit charge
 
   On attend l'entrée avec `"exposure": "direct"` et `"Authorization": "Bearer ${OPENALEX_TOKEN}"`, **jamais** la valeur du jeton.
 
+### V17 bis — Un serveur qui demande une connexion par compte (OAuth)
+
+Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
+
+- **Action** :
+  1. Ajoutez le MCP d'OpenAlex avec l'authentification « Aucune », puis « Inspecter tools/list ».
+  2. Cliquez sur « Ouvrir ce pack dans Pi Web », puis sur Réglages (en bas de la barre latérale) : la rubrique MCP s'ouvre. Sur la ligne du serveur (partie projet), cliquez sur « Sign in » et allez jusqu'au bout de la connexion sur openalex.org. Si la page de retour ne s'ouvre pas, collez son adresse dans le champ que Pi Web propose.
+  3. Revenez au Studio, rechargez la page, puis inspectez de nouveau. Lancez enfin une campagne d'un cas qui utilise un outil d'OpenAlex.
+- **Attendu** :
+  - étape 1 : la marche à suivre et le bouton « Ouvrir ce pack dans Pi Web » ; l'état « Connexion par compte » ;
+  - étape 3 : l'état « Compte connecté » puis « Inspecté », la liste des outils, et l'appel `mcp__openalex__…` dans la revue du cas.
+- **Remarque** : chaque appel passe par la clé d'API OpenAlex du compte connecté, et son budget.
+
 ### V18 — Une campagne qui appelle un outil du serveur
 
 - **Action** : créez une suite d'un cas dont la requête demande explicitement d'utiliser l'outil (par exemple « Utilise l'outil de recherche pour trouver trois articles récents sur … »), puis lancez une campagne avec Qwen3-VL-8B.

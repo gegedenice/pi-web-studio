@@ -336,7 +336,16 @@ try {
     await page.getByText("Cherche des travaux dans le catalogue.").waitFor();
     await page.getByText('"required"').waitFor();
     await visibleTextIsPlain(page, "inspection");
-    await page.screenshot({ path: join(artifacts, "9-mcp-inspected.png"), fullPage: true });
+    // pi-web's body never scrolls (app/globals.css): the Studio page must, down to the last tool.
+    await page.locator("summary", { hasText: "get_work" }).click();
+    const scroll = await page.locator(".studio-page").evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      return { overflow: getComputedStyle(element).overflowY, scrolled: element.scrollTop > 0 };
+    });
+    assert.deepEqual(scroll, { overflow: "auto", scrolled: true });
+    const last = await page.getByText("Lit une notice.").boundingBox();
+    assert.ok(last && last.y + last.height <= 860, `the last tool is reachable (${JSON.stringify(last)})`);
+    await page.screenshot({ path: join(artifacts, "9-mcp-inspected.png") });
     const mcpFile = JSON.parse(readFileSync(join(packsDir, packId, ".pi/mcp.json"), "utf8"));
     assert.deepEqual(mcpFile.mcpServers.biblio, {
       url: `http://127.0.0.1:${mcp.address().port}/mcp`,

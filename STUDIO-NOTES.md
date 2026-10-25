@@ -907,3 +907,23 @@ Recommandations retenues telles quelles : Q-L3-1 (b), réglage du pack, « tous 
 | Une session de test du pack appelle un de ses outils en exposition `direct` (`mcp__<serveur>__<outil>`). | ✅ Intégration (vraie session pi-web, faux modèle). En local : V18 avec Qwen3-VL-8B. |
 | Tentative d'ajout d'un serveur stdio refusée avec un message clair. | ✅ Unitaire, routes (commande dans l'adresse, entrée `command`), éditeur brut, e2e. En local : V19. |
 
+### 14.5 Test local (2026-10-25) et corrections
+
+| Vérification | Résultat | Suite |
+|---|---|---|
+| V17 | ✅ Streamable HTTP sans authentification et avec jeton Bearer. ❌ Le MCP officiel d'OpenAlex, qui passe par OAuth 2.1 : « Le serveur demande une connexion par compte (OAuth), que le Studio ne gère pas. » | **Comportement prévu** (OAuth hors périmètre du Studio, STUDIO.md §8), mais le message laissait l'utilisatrice sans suite. **Correctif** ci-dessous. |
+| V18 | ✅ Avec le MCP de HAL et Qwen3.6-27B. | — |
+| V19 | ✅ | — |
+| V20 | ✅ Pi Web montre les mêmes serveurs, et permet d'aller jusqu'à la connexion du serveur OpenAlex. | — |
+| Affichage | ❌ Pas de défilement sur les pages longues (outils d'un serveur inspecté). | **Défaut du Studio**, présent depuis le lot 1 : `app/globals.css` fixe `html` et `body` à la hauteur de la fenêtre avec `overflow: hidden`, et la page Studio n'avait pas de conteneur de défilement. **Correctif** ci-dessous. |
+
+**Correctif OAuth.** Le Studio ne se connecte toujours pas lui-même à un serveur OAuth. En revanche, la connexion faite dans Pi Web (Réglages › MCP, partie projet du pack) range le jeton dans `mcp-auth.json`, que lisent aussi l'inspection du Studio (le Test de pi-web) et les sessions de test, sous la clé `mcp__<identifiant>|<adresse>`. Désormais :
+
+- une inspection qui répond « connexion par compte demandée » affiche la marche à suivre et un bouton « Ouvrir ce pack dans Pi Web » (`/?cwd=<dossier du pack>`, Réglages ouverts sur MCP) ;
+- l'état du serveur devient « Connexion par compte », puis « Compte connecté » quand Pi Web a un jeton pour lui (lecture du fichier sans jamais en renvoyer le contenu) ;
+- renommer le serveur ou changer son adresse demande une nouvelle connexion : le message le dit.
+
+Test : `mcp.test.mjs` (+1, état « connecté » lu depuis `mcp-auth.json`, jeton jamais renvoyé). La connexion OAuth réelle reste à vérifier en local (V17 bis).
+
+**Correctif du défilement.** `.studio-page` a la hauteur de la fenêtre et défile (`overflow-y: auto`) ; l'atelier grandit avec son contenu. Les barres « Enregistrer » restent collées en bas de l'écran. L'e2e vérifie que la page défile jusqu'au dernier outil inspecté.
+

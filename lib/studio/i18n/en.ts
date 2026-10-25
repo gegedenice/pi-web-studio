@@ -533,4 +533,13 @@ export const studioEnMessages: Record<string, string> = {
   "studio.mcp.rawIntro": "The mcpServers format of Pi's built-in MCP, in JSON. Servers started by a command and SSE are refused.",
   "studio.mcp.deleteTitle": "Delete the server \"{name}\"?",
   "studio.mcp.deleteMessage": "The server leaves the pack. It stays in the history and can be restored.",
+  "studio.mcp.state.needsAuth": "Account sign-in",
+  "studio.mcp.state.signedIn": "Account signed in",
+  "studio.mcp.signedIn": "This server is signed in with an account (OAuth) from Pi Web: inspection and campaigns use that connection.",
+  "studio.mcp.signIn.title": "This server asks for an account sign-in (OAuth). The Studio does not sign in itself, but it uses Pi Web's sign-in:",
+  "studio.mcp.signIn.step1": "Click \"Open this pack in Pi Web\".",
+  "studio.mcp.signIn.step2": "In Pi Web, open Settings (at the bottom of the sidebar): the MCP section shows. On the row of the server \"{name}\" (project part), click \"Sign in\" and follow the sign-in.",
+  "studio.mcp.signIn.step3": "Come back to the Studio and inspect again.",
+  "studio.mcp.signIn.note": "The sign-in holds for this server at this address and under this identifier: renaming it or changing its address needs a new sign-in.",
+  "studio.mcp.signIn.open": "Open this pack in Pi Web",
 };

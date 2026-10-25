@@ -53,6 +53,12 @@ export interface McpServerSummary {
   /** Concurrency base for an edit: the entry as the page read it. */
   entryHash: string;
   inspection?: InspectionRecord;
+  /**
+   * Pi-web's OAuth store holds a token for it (signed in from Settings › MCP).
+   * The Studio never signs in itself (STUDIO.md §8), but its inspection and its
+   * test sessions use that store, as every pi-web session does.
+   */
+  signedIn?: true;
 }
 
 export interface GlobalMcpServer {
@@ -78,6 +84,8 @@ export interface McpOverview {
   codemodeOnly: boolean;
   /** The SDK's MCP modules could not load: entries are listed unchecked. */
   unchecked: boolean;
+  /** The pack's folder, to open it in Pi Web (sign-in of an OAuth server). */
+  packDir: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -172,6 +180,7 @@ export async function listMcpServers(packId: string): Promise<McpOverview> {
       ...(variable ? { tokenVariable: variable, tokenVariableSet: variableIsSet(variable) } : {}),
       entryHash: hash,
       ...(inspection ? { inspection } : {}),
+      ...(info?.signedIn === true ? { signedIn: true as const } : {}),
     });
   }
 
@@ -186,7 +195,7 @@ export async function listMcpServers(packId: string): Promise<McpOverview> {
     ...(info.invalidError ? { invalid: info.invalidError } : {}),
   }));
 
-  return { servers, globals, fileInvalid: file.invalid, codemodeOnly: await codemodeOnly(id), unchecked: !internals };
+  return { servers, globals, fileInvalid: file.invalid, codemodeOnly: await codemodeOnly(id), unchecked: !internals, packDir: resolvePackPath(id) };
 }
 
 function translateWriteError(error: unknown, name: string): never {
