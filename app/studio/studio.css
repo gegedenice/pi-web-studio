@@ -543,6 +543,15 @@
 .studio-badge.is-verdict-partiel { color: #d97706; }
 .studio-badge.is-verdict-ko { color: #ef4444; }
 
+/* MCP (lot 3). */
+.studio-badge.is-muted { color: var(--text-muted); }
+.studio-globals { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.studio-global { display: flex; flex-direction: column; gap: 0; margin-bottom: 6px; }
+.studio-inspect-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.studio-inspection { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.studio-grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.studio-input.is-compact { width: auto; padding: 2px 6px; font-size: 12px; }
+
 /* Tablet: the navigation becomes a row above the content, the list above the editor. */
 @media (max-width: 900px) {
   .studio-workshop { grid-template-columns: minmax(0, 1fr); }

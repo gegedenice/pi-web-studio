@@ -346,6 +346,59 @@ Ces vérifications demandent le pack `essai` de V1, avec sa skill, et le provide
   - étape 3 : un avertissement explique que `bash` permet d'agir hors du dossier du pack. Décochez-le et enregistrez.
 - **Remarque** : avec l'outil `read` seul (le défaut), un outil MCP que son serveur ne déclare pas « lecture seule » est refusé ; la revue l'indique « bloqué ». Cela concerne le lot 3.
 
+### Lot 3 — Serveurs MCP
+
+Il faut l'adresse Streamable HTTP d'un serveur MCP réel (par exemple celui de l'établissement) et, s'il en demande un, son jeton. Ajoutez le jeton au fichier `.env`, sous un nom de votre choix, puis redémarrez :
+
+```
+OPENALEX_TOKEN=la-valeur-du-jeton
+```
+
+Vérifiez que la variable passe bien au conteneur (`compose.dev.yml` doit charger `.env`) : `studio printenv OPENALEX_TOKEN`.
+
+### V17 — Ajouter et inspecter un serveur
+
+- **Action** :
+  1. Dans le pack `essai`, rubrique **MCP**, « Nouveau serveur ». Identifiant `openalex`, l'adresse du serveur, une description, « Jeton Bearer via variable d'environnement » et `OPENALEX_TOKEN` (ou « Aucune »). Enregistrez.
+  2. Cliquez sur « Inspecter tools/list », puis dépliez un outil.
+  3. Rubrique **Configuration** : choisissez un modèle par défaut si ce n'est pas fait.
+- **Attendu** :
+  - étape 1 : « La variable est définie dans le conteneur. » et l'état « À inspecter » ;
+  - étape 2 : « Connexion réussie : n outil(s). », le nom et la version du serveur, la description et les paramètres de chaque outil ; l'état devient « Inspecté » ;
+  - étape 3 : dans le Parcours, « Connecter » passe à « Prêt ».
+- **Commande** :
+
+  ```powershell
+  studio cat /workspace/packs/essai/.pi/mcp.json
+  ```
+
+  On attend l'entrée avec `"exposure": "direct"` et `"Authorization": "Bearer ${OPENALEX_TOKEN}"`, **jamais** la valeur du jeton.
+
+### V18 — Une campagne qui appelle un outil du serveur
+
+- **Action** : créez une suite d'un cas dont la requête demande explicitement d'utiliser l'outil (par exemple « Utilise l'outil de recherche pour trouver trois articles récents sur … »), puis lancez une campagne avec Qwen3-VL-8B.
+- **Attendu** : dans la revue du cas, « Outils utilisés » montre `mcp__openalex__…` sans la mention « bloqué », et la réponse reprend ce que l'outil a renvoyé. « Ouvrir la session » montre le même appel dans Pi Web.
+- **Variante** : en mode avancé, rubrique Configuration, choisissez « Seulement ceux déclarés en lecture seule » et relancez. Un outil que le serveur ne déclare pas en lecture seule apparaît alors « bloqué ».
+- **Remarque** : un petit modèle n'appelle pas toujours l'outil. Si la réponse n'en utilise aucun, reformulez la requête avant de conclure.
+
+### V19 — Les refus et les erreurs
+
+- **Action** :
+  1. « Nouveau serveur » : collez `npx -y @modelcontextprotocol/server-filesystem .` dans l'adresse.
+  2. En mode avancé, dans « Fichier des serveurs », ajoutez une entrée `"fs": { "command": "npx", "args": ["srv"] }` et enregistrez.
+  3. Ajoutez un serveur avec une adresse injoignable (`https://exemple.invalid/mcp`), puis inspectez-le.
+  4. Ajoutez un serveur qui lit une variable absente du `.env`, puis inspectez-le.
+- **Attendu** :
+  - étape 1 : « Ceci ressemble à une commande, pas à une adresse… » ; rien n'est enregistré ;
+  - étape 2 : « Le serveur « fs » n'est pas un serveur Streamable HTTP : le Studio ne l'enregistre pas. » ;
+  - étape 3 : « La connexion a échoué. » en moins de 20 secondes, avec le message du serveur replié ;
+  - étape 4 : « Jeton absent », et l'inspection répond sans contacter le serveur.
+
+### V20 — Pi Web voit les mêmes serveurs
+
+- **Action** : dans Pi Web, ouvrez une session sur `/workspace/packs/essai`, puis les Réglages › MCP.
+- **Attendu** : le serveur `openalex` du pack est listé dans la partie projet, avec le même état. Les serveurs globaux désactivés dans le pack depuis le Studio y apparaissent désactivés pour ce projet.
+
 ### V3 et V4 — Au déploiement
 
 Ces deux vérifications demandent le proxy d'authentification (Traefik avec forward-auth). Elles se font donc **au déploiement**, pas en local :

@@ -13,6 +13,7 @@ import { PackHistory } from "./HistoryPanel";
 import { SkillsSection } from "./SkillsSection";
 import { StudioHeader } from "./StudioHeader";
 import { ConfirmDialog, Dialog, IssueBadge, Notice, useAdvancedMode, ValidationList } from "./StudioUi";
+import { McpSection } from "./mcp/McpSection";
 import { TestsSection } from "./tests/TestsSection";
 
 const SECTIONS = ["instructions", "skills", "mcp", "tests", "configuration", "history", "providers"] as const;
@@ -30,6 +31,7 @@ export function useDescribePath(): (path: string) => string {
     if (path === ".pi/APPEND_SYSTEM.md") return t("studio.files.appendSystem");
     if (path === ".pi/SYSTEM.md") return t("studio.files.system");
     if (path === ".pi/settings.json") return t("studio.files.settings");
+    if (path === ".pi/mcp.json") return t("studio.files.mcp");
     if (path === ".studio/pack.json") return t("studio.files.packMeta");
     if (path === ".gitignore") return t("studio.files.ignore");
     const skill = /^\.pi\/skills\/([^/]+)(?:\/(.+))?$/.exec(path);
@@ -106,7 +108,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
   const navItems: { id: Section; label: string; count?: number; later?: string }[] = [
     { id: "instructions", label: t("studio.nav.instructions") },
     { id: "skills", label: t("studio.nav.skills"), count: skills.length },
-    { id: "mcp", label: t("studio.nav.mcp"), later: t("studio.later.lot3") },
+    { id: "mcp", label: t("studio.nav.mcp") },
     { id: "tests", label: t("studio.nav.tests") },
     { id: "configuration", label: t("studio.nav.configuration") },
     { id: "history", label: t("studio.nav.history") },
@@ -166,12 +168,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
             <TestsSection packId={packId} pack={pack} skills={skills} advanced={advanced} item={item} onNavigate={(next) => navigate("tests", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
           )}
           {section === "mcp" && (
-            <div className="studio-section">
-              <h2 className="studio-title">{t("studio.nav.mcp")}</h2>
-              <div className="studio-empty">
-                <p>{t("studio.later.mcpText")}</p>
-              </div>
-            </div>
+            <McpSection packId={packId} pack={pack} advanced={advanced} item={item} onSelect={(next) => navigate("mcp", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
           )}
         </main>
       </div>

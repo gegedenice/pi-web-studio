@@ -24,6 +24,8 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
   const [status, setStatus] = useState<PackStatus>(pack.meta.status);
   const [model, setModel] = useState(initialModel);
   const [tools, setTools] = useState(initialTools);
+  const initialMcpTools = pack.meta.tests?.mcpTools === "read-only" ? "read-only" : "all";
+  const [mcpTools, setMcpTools] = useState(initialMcpTools);
   const [models, setModels] = useState<ModelOption[] | null>(null);
   const [modelsError, setModelsError] = useState(false);
   const [note, setNote] = useState("");
@@ -37,7 +39,8 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
     setStatus(pack.meta.status);
     setModel(initialModel);
     setTools(initialTools);
-  }, [pack.meta.title, pack.meta.description, pack.meta.status, initialModel, initialTools]);
+    setMcpTools(initialMcpTools);
+  }, [pack.meta.title, pack.meta.description, pack.meta.status, initialModel, initialTools, initialMcpTools]);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,7 +51,7 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
     return () => { cancelled = true; };
   }, [pack.meta.id]);
 
-  const dirty = title !== pack.meta.title || description !== pack.meta.description || status !== pack.meta.status || model !== initialModel || tools !== initialTools;
+  const dirty = title !== pack.meta.title || description !== pack.meta.description || status !== pack.meta.status || model !== initialModel || tools !== initialTools || mcpTools !== initialMcpTools;
   useEffect(() => onDirtyChange(dirty || settingsDirty), [dirty, settingsDirty, onDirtyChange]);
   useUnsavedGuard(dirty);
 
@@ -67,6 +70,7 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
           note,
           ...(model !== initialModel ? { defaultModel: model ? { provider: model.slice(0, slash), modelId: model.slice(slash + 1) } : null } : {}),
           ...(tools !== initialTools ? { testTools: tools === "read" ? null : tools.split(",") } : {}),
+          ...(mcpTools !== initialMcpTools ? { testMcpTools: mcpTools } : {}),
         },
       });
       setNote("");
@@ -76,7 +80,7 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
     } finally {
       setSaving(false);
     }
-  }, [dirty, saving, model, initialModel, tools, initialTools, pack.meta.id, title, description, status, note, onSaved, t]);
+  }, [dirty, saving, model, initialModel, tools, initialTools, mcpTools, initialMcpTools, pack.meta.id, title, description, status, note, onSaved, t]);
 
   useSaveShortcut(() => void save(), dirty && !saving);
 
@@ -143,6 +147,14 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
           </div>
           {toolList.length === 0 && <Notice kind="error">{t("studio.config.testToolsNone")}</Notice>}
           {wide.length > 0 && <Notice kind="warning">{t("studio.config.testToolsWide", { list: wide.join(", ") })}</Notice>}
+          <div className="studio-field">
+            <label htmlFor="studio-config-mcp-tools">{t("studio.config.testMcpTools")}</label>
+            <select id="studio-config-mcp-tools" className="studio-input" value={mcpTools} onChange={(event) => setMcpTools(event.target.value as "all" | "read-only")}>
+              <option value="all">{t("studio.config.testMcpToolsAll")}</option>
+              <option value="read-only">{t("studio.config.testMcpToolsReadOnly")}</option>
+            </select>
+            <p className="studio-hint">{t("studio.config.testMcpToolsHint")}</p>
+          </div>
         </fieldset>
       )}
       <SaveBar dirty={dirty && toolList.length > 0} saving={saving} onSave={() => void save()} note={note} onNoteChange={setNote} />

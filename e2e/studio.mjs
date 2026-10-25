@@ -5,6 +5,8 @@
 // Lot 2, when the script starts its own server: a suite of 4 cases, a campaign
 // on each of two models served by a fake OpenAI-compatible server (real pi-web
 // sessions), verdicts saved and read again after a reload, the comparison.
+// Lot 3, likewise: a command refused in the MCP form, a Streamable HTTP server
+// (fake, Bearer token from an environment variable) added and inspected.
 //
 //   node e2e/studio.mjs                     starts its own `next dev` (no other dev server running)
 //   STUDIO_E2E_URL=http://127.0.0.1:30141 STUDIO_E2E_PACKS_DIR=<its STUDIO_PACKS_DIR> node e2e/studio.mjs
@@ -12,7 +14,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { createWriteStream, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -32,6 +34,35 @@ let base = process.env.STUDIO_E2E_URL;
 let packsDir = process.env.STUDIO_E2E_PACKS_DIR;
 const packId = `revue-e2e-${Date.now().toString(36)}`;
 let llama;
+let mcp;
+const MCP_TOKEN = "jeton-e2e";
+
+/** A Streamable HTTP MCP server answering in plain JSON, behind a Bearer token. */
+async function startFakeMcp() {
+  const http = createHttpServer((req, res) => {
+    if (req.method !== "POST") return void res.writeHead(405).end();
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      const message = JSON.parse(body);
+      if (message.id === undefined) return void res.writeHead(202).end();
+      if (req.headers.authorization !== `Bearer ${MCP_TOKEN}`) return void res.writeHead(401).end();
+      const result = message.method === "initialize"
+        ? { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "biblio-e2e", version: "2.1.0" } }
+        : message.method === "tools/list"
+          ? { tools: [
+              { name: "search_works", description: "Cherche des travaux dans le catalogue.", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+              { name: "get_work", description: "Lit une notice.", inputSchema: { type: "object", properties: { id: { type: "string" } } }, annotations: { readOnlyHint: true } },
+            ] }
+          : { content: [{ type: "text", text: "ok" }] };
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
+    });
+  });
+  http.listen(0, "127.0.0.1");
+  await once(http, "listening");
+  return http;
+}
 
 /** Answers every chat request at once: the model's id, then the skills it was shown. */
 async function startFakeModels() {
@@ -65,6 +96,7 @@ async function startServer() {
   packsDir = join(temp, "packs");
   mkdirSync(join(temp, "agent"), { recursive: true });
   llama = await startFakeModels();
+  mcp = await startFakeMcp();
   writeFileSync(join(temp, "agent/models.json"), JSON.stringify({
     providers: {
       "llamacpp-e2e": {
@@ -93,6 +125,7 @@ async function startServer() {
       STUDIO_PACKS_DIR: packsDir,
       STUDIO_DEFAULT_USER: "geraldine",
       STUDIO_USERS_FILE: join(temp, "users.json"),
+      E2E_MCP_TOKEN: MCP_TOKEN,
       NEXT_TELEMETRY_DISABLED: "1",
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -272,6 +305,47 @@ try {
       `[${packId}] Crée suite recherche-documentaire`,
     ]);
     console.log("studio e2e: lot 2 ok (suite, two campaigns, verdicts, comparison)");
+
+    // 11. Lot 3: a command is refused in the MCP form, a Streamable HTTP server is added and inspected.
+    await page.getByRole("navigation").getByRole("button", { name: "MCP" }).click();
+    await page.getByText("Ce pack n'a pas encore de serveur MCP.").waitFor();
+    await page.getByRole("button", { name: "Nouveau serveur" }).click();
+    await page.getByText("Transport verrouillé : Streamable HTTP.").waitFor();
+    await page.getByLabel("Identifiant").fill("fichiers");
+    await page.getByLabel("Adresse du serveur (endpoint MCP)").fill("npx -y @modelcontextprotocol/server-filesystem .");
+    await page.getByText("Ceci ressemble à une commande").waitFor();
+    await page.keyboard.press("Control+s");
+    assert.equal(await page.locator(".studio-item-list .studio-item").count(), 0, "nothing was saved");
+    await visibleTextIsPlain(page, "command refused");
+    await page.screenshot({ path: join(artifacts, "8-mcp-refused.png"), fullPage: true });
+
+    await page.getByLabel("Identifiant").fill("biblio");
+    await page.getByLabel("Adresse du serveur (endpoint MCP)").fill(`http://127.0.0.1:${mcp.address().port}/mcp`);
+    await page.getByLabel("Description").fill("Catalogue de la bibliothèque.");
+    await page.getByLabel("Authentification").selectOption("bearer-env");
+    await page.getByLabel("Nom de la variable d'environnement").fill("E2E_MCP_TOKEN");
+    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("heading", { name: "biblio" }).waitFor();
+    await page.getByText("La variable est définie dans le conteneur.").waitFor();
+    await page.locator(".studio-item-list").getByText("À inspecter").waitFor();
+    await page.getByRole("button", { name: "Inspecter tools/list" }).click();
+    await page.getByText("Connexion réussie : 2 outil(s).").waitFor({ timeout: 30_000 });
+    await page.getByText("Serveur biblio-e2e, version 2.1.0.").waitFor();
+    await page.locator(".studio-item-list").getByText("Inspecté").waitFor();
+    await page.locator("summary", { hasText: "search_works" }).click();
+    await page.getByText("Cherche des travaux dans le catalogue.").waitFor();
+    await page.getByText('"required"').waitFor();
+    await visibleTextIsPlain(page, "inspection");
+    await page.screenshot({ path: join(artifacts, "9-mcp-inspected.png"), fullPage: true });
+    const mcpFile = JSON.parse(readFileSync(join(packsDir, packId, ".pi/mcp.json"), "utf8"));
+    assert.deepEqual(mcpFile.mcpServers.biblio, {
+      url: `http://127.0.0.1:${mcp.address().port}/mcp`,
+      description: "Catalogue de la bibliothèque.",
+      headers: { Authorization: "Bearer ${E2E_MCP_TOKEN}" },
+      exposure: "direct",
+    });
+    assert.equal(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s", "--", `${packId}/.pi/mcp.json`], { encoding: "utf8" }).trim(), `[${packId}] Ajoute serveur MCP biblio`);
+    console.log("studio e2e: lot 3 ok (command refused, server added and inspected)");
   }
 } catch (error) {
   console.error(error);
@@ -284,4 +358,6 @@ try {
   }
   llama?.closeAllConnections();
   llama?.close();
+  mcp?.closeAllConnections();
+  mcp?.close();
 }

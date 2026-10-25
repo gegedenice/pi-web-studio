@@ -488,6 +488,7 @@ Ajouts du lot 1 :
 | M5 | `lib/i18n/registry.test.mjs` | Un cas `fr` : enregistrée, partielle, non détectée. |
 | M6 | `components/SessionSidebar.tsx` | Bouton « π Studio » au bout de la ligne d'outils, **après** la recherche : le test amont fige l'enchaînement Nouveau → Recherche. Seul le « π » reste quand la barre est étroite. |
 | M7 | `package.json` | Aucune modification : pas de nouvelle dépendance. |
+| M8 (lot 3) | `lib/rpc-manager.ts` | Option `mcpReadOnlyPolicy?: boolean` de `startRpcSession()`. À `false`, l'extension de lecture seule MCP (`createReadOnlyMcpPolicyExtension()`) est retirée de la liste des extensions par un `.filter()` ; la ligne qui l'ajoute reste identique, car un test amont la fige mot pour mot. Seules les sessions de test du Studio passent `false`, et seulement si le pack garde « Tous les outils des serveurs du pack » (Q-L3-1). Sans l'option, pi-web se comporte exactement comme avant. |
 
 Rien d'autre n'est modifié dans l'amont. La route `api/studio/packs/<pack>/models` appelle la route `GET /api/models` de pi-web sans la modifier. Au passage, elle ajoute le dossier du pack aux dossiers autorisés de pi-web (`allowFileRoot`), comme le fait déjà l'ouverture d'une session dans ce dossier.
 
@@ -862,3 +863,47 @@ Je recommande **(b)**, avec « tous les outils du pack » par défaut : les serv
 **Q-L3-7 — Exposition par outil (mode avancé).** Je propose de n'offrir que `direct` et `hidden` (masquer un outil), les deux utiles à un petit modèle ; `deferred` et `codemode` restent affichés s'ils sont déjà dans le fichier. D'accord ?
 
 **Q-L3-8 — Coller une configuration.** pi-web sait importer une configuration collée (`lib/mcp-import*.ts` : JSON d'un autre client, ligne `claude mcp add …`). On pourrait proposer « Coller une configuration » à côté du formulaire, avec le même refus du stdio. Je propose de ne pas le faire au lot 3 (le formulaire suffit), sauf si vous le souhaitez.
+
+### 13.6 Décisions (2026-10-25)
+
+Recommandations retenues telles quelles : Q-L3-1 (b), réglage du pack, « tous les outils » par défaut, avec l'option amont M8 ; Q-L3-2 serveurs globaux en lecture seule avec « Désactiver dans ce pack » ; Q-L3-3 identifiant au format des skills ; Q-L3-4 « Connecter » prêt sans serveur obligatoire ; Q-L3-5 entrées hors politique affichées, activables, supprimables, non modifiables, éditeur brut qui refuse les serveurs lancés par une commande et SSE ; Q-L3-6 simple avertissement ; Q-L3-7 « direct » et « Masqué » seulement ; Q-L3-8 pas de collage de configuration.
+
+## 14. Lot 3 — livraison (2026-10-25)
+
+### 14.1 Ce qui est livré
+
+- **Rubrique MCP** (`components/studio/mcp/McpSection.tsx`) :
+  - liste des serveurs du pack avec leur état (Désactivé, Hors Studio, Refusé par Pi, Jeton absent, À inspecter, Inspecté, Échec), « Nouveau serveur » ;
+  - carte « Serveur MCP » : bandeau « Transport verrouillé : Streamable HTTP », identifiant (avec le nom que le modèle verra, `mcp__<id>__…`), adresse, description, authentification `Aucune` ou `Jeton Bearer via variable d'environnement` (nom de la variable seulement, avec « La variable est définie / n'est pas définie dans le conteneur »), interrupteur « Actif », suppression avec confirmation, historique ;
+  - « Inspecter tools/list » : état, `serverInfo`, et pour chaque outil la description complète, « lecture seule » ou « non déclaré en lecture seule » (« sera bloqué en test » si le pack garde la règle de pi-web), l'exposition et le schéma des paramètres replié ;
+  - mode avancé : délai par requête, exposition par outil (« Comme le serveur » ou « Masqué », à partir de la dernière inspection), éditeur brut de `.pi/mcp.json` ;
+  - serveurs de Pi Web (globaux) en lecture seule, avec la case « Actif dans ce pack » ;
+  - avertissements : Code mode « toujours », pack non approuvé, fichier mal formé.
+- **Configuration** (mode avancé) : « Outils MCP pendant les tests : tous les outils des serveurs du pack / seulement ceux déclarés en lecture seule » (`tests.mcpTools` dans `pack.json`, absent par défaut). Les campagnes l'enregistrent dans `run.json` (`options.mcpTools`).
+- **Parcours** : « Connecter » est calculé (Q-L3-4).
+- **Moteur** (`lib/studio/mcp/`) : `policy.ts` (règles pures, partagées avec l'écran), `servers.ts` (lecture par le lecteur de pi-web, écriture par son écrivain, validation par le SDK, un commit par changement), `inspect.ts` (inspecteur injectable ; `piInspector` passe par le Test de pi-web avec sa propre fonction `connect`), `inspections.ts` (dernière inspection en mémoire). Routes : `mcp` (GET, POST ajout ou serveur global), `mcp/[server]` (GET, PUT, PATCH `enabled`, DELETE), `mcp/[server]/inspect` (POST).
+
+### 14.2 Écarts au plan du §13 et choix à connaître
+
+- L'exposition par outil est dans le formulaire de `McpSection.tsx`, pas dans un composant `ToolExposureEditor.tsx` séparé.
+- Le renommage passe par le formulaire (PUT avec un nouvel identifiant), pas par PATCH. L'ordre des serveurs dans le fichier est conservé.
+- Les codes de problème du formulaire sont `serverNameInvalid` et `serverDescriptionTooLong`, pour ne pas reprendre ceux des skills.
+- Une entrée collée dans une requête (`command`, `type: "sse"`) est refusée avec `mcpTransportRefused`, plutôt qu'avec « adresse manquante ».
+- L'inspection ne contacte pas le serveur si la variable du jeton n'est pas définie (état « Jeton absent »).
+- Si une inspection de pi-web (Settings › MCP) est déjà en cours pour la même entrée, le Studio la rejoint : il n'a alors pas les schémas (« Paramètres non disponibles : relancez l'inspection »).
+
+### 14.3 Tests
+
+- **Unitaires et routes** : `lib/studio/mcp/mcp.test.mjs` (5 : règles du formulaire ; entrées écrites et relues ; ajout, renommage, activation, suppression, serveurs globaux et collisions de noms, avec un commit chacun ; entrée écrite à la main et éditeur brut ; inspection et étape « Connecter »), `app/api/studio/routes.test.mjs` (+1), `lib/studio/i18n.test.mjs`. Tous verts.
+- **Intégration sans vrai serveur ni vrai modèle** : `lib/studio/mcp/mcp.integration.test.mjs`. Faux serveur MCP Streamable HTTP derrière un jeton Bearer, faux modèle compatible OpenAI. Le serveur est ajouté par `addMcpServer`, inspecté par `piInspector` (schéma et description complets), puis une campagne d'un cas, en vraie session pi-web, appelle `mcp__biblio__search_works` déclaré en `direct` à côté de `read`. Le serveur reçoit l'appel avec l'en-tête `Authorization` tiré de la variable. Avec « seulement ceux déclarés en lecture seule », le même appel est bloqué et n'atteint pas le serveur.
+- **e2e** (`node e2e/studio.mjs`) : lots 1 et 2, puis une commande refusée dans le formulaire, l'ajout d'un faux serveur avec jeton, l'inspection, le contenu exact de `.pi/mcp.json` et la version enregistrée. Aucun terme interdit à l'écran.
+- `lib/rpc-manager-chat-only.integration.test.mjs` échoue toujours, comme avant le lot 2 (§12.3).
+
+### 14.4 Critères d'acceptation du lot 3
+
+| Critère | Statut |
+|---|---|
+| Ajout d'un serveur Streamable HTTP par le formulaire, inspection réussie. | ✅ e2e et intégration (faux serveur). En local : V17 avec le vrai serveur. |
+| Une session de test du pack appelle un de ses outils en exposition `direct` (`mcp__<serveur>__<outil>`). | ✅ Intégration (vraie session pi-web, faux modèle). En local : V18 avec Qwen3-VL-8B. |
+| Tentative d'ajout d'un serveur stdio refusée avec un message clair. | ✅ Unitaire, routes (commande dans l'adresse, entrée `command`), éditeur brut, e2e. En local : V19. |
+
