@@ -927,3 +927,9 @@ Test : `mcp.test.mjs` (+1, état « connecté » lu depuis `mcp-auth.json`, jeto
 
 **Correctif du défilement.** `.studio-page` a la hauteur de la fenêtre et défile (`overflow-y: auto`) ; l'atelier grandit avec son contenu. Les barres « Enregistrer » restent collées en bas de l'écran. L'e2e vérifie que la page défile jusqu'au dernier outil inspecté.
 
+### 14.6 V17 bis (2026-10-25) : le retour de connexion en conteneur
+
+Le rebond du Studio vers Pi Web fonctionne. La page de retour d'openalex.org, `http://127.0.0.1:<port>/callback?code=…`, ne s'affiche pas : le serveur de retour que Pi ouvre pour la connexion écoute sur la boucle locale **du conteneur**, sur un port pris au hasard et non publié ; le navigateur, sous Windows, ne l'atteint pas. Publier un port n'y changerait rien (le serveur n'écoute que sur 127.0.0.1 dans le conteneur), et `oauth.callbackPort` n'est pas exprimable dans le formulaire du Studio.
+
+Pi Web a prévu ce cas : la ligne « Sign in » montre toujours le champ « Address the browser landed on ». On y colle l'adresse de la page qui ne s'affiche pas, puis « Continue ». La marche à suivre du Studio et TEST-LOCAL (V17 bis) le disent désormais. Aucun changement de code au-delà de ces textes.
+

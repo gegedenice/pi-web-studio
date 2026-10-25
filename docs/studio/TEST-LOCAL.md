@@ -380,11 +380,13 @@ Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
 
 - **Action** :
   1. Ajoutez le MCP d'OpenAlex avec l'authentification « Aucune », puis « Inspecter tools/list ».
-  2. Cliquez sur « Ouvrir ce pack dans Pi Web », puis sur Réglages (en bas de la barre latérale) : la rubrique MCP s'ouvre. Sur la ligne du serveur (partie projet), cliquez sur « Sign in » et allez jusqu'au bout de la connexion sur openalex.org. Si la page de retour ne s'ouvre pas, collez son adresse dans le champ que Pi Web propose.
-  3. Revenez au Studio, rechargez la page, puis inspectez de nouveau. Lancez enfin une campagne d'un cas qui utilise un outil d'OpenAlex.
+  2. Cliquez sur « Ouvrir ce pack dans Pi Web », puis sur Réglages (en bas de la barre latérale) : la rubrique MCP s'ouvre. Sur la ligne du serveur (partie projet), cliquez sur « Sign in », gardez cette page ouverte, et connectez-vous sur openalex.org.
+  3. Le navigateur arrive sur `http://127.0.0.1:…/callback?code=…` et affiche « 127.0.0.1 n'autorise pas la connexion » : c'est normal en conteneur (le serveur de retour de Pi écoute dans le conteneur, pas sur Windows). Copiez **l'adresse complète** depuis la barre d'adresse, collez-la dans le champ « Address the browser landed on » de Pi Web, puis cliquez sur « Continue », sans attendre (le code ne vaut que pour cette connexion).
+  4. Revenez au Studio, rechargez la page, puis inspectez de nouveau. Lancez enfin une campagne d'un cas qui utilise un outil d'OpenAlex.
 - **Attendu** :
   - étape 1 : la marche à suivre et le bouton « Ouvrir ce pack dans Pi Web » ; l'état « Connexion par compte » ;
-  - étape 3 : l'état « Compte connecté » puis « Inspecté », la liste des outils, et l'appel `mcp__openalex__…` dans la revue du cas.
+  - étape 3 : Pi Web affiche « Signed in. » sur la ligne du serveur ;
+  - étape 4 : l'état « Compte connecté » puis « Inspecté », la liste des outils, et l'appel `mcp__openalex__…` dans la revue du cas.
 - **Remarque** : chaque appel passe par la clé d'API OpenAlex du compte connecté, et son budget.
 
 ### V18 — Une campagne qui appelle un outil du serveur

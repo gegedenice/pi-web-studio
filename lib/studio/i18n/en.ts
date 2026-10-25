@@ -538,7 +538,7 @@ export const studioEnMessages: Record<string, string> = {
   "studio.mcp.signedIn": "This server is signed in with an account (OAuth) from Pi Web: inspection and campaigns use that connection.",
   "studio.mcp.signIn.title": "This server asks for an account sign-in (OAuth). The Studio does not sign in itself, but it uses Pi Web's sign-in:",
   "studio.mcp.signIn.step1": "Click \"Open this pack in Pi Web\".",
-  "studio.mcp.signIn.step2": "In Pi Web, open Settings (at the bottom of the sidebar): the MCP section shows. On the row of the server \"{name}\" (project part), click \"Sign in\" and follow the sign-in.",
+  "studio.mcp.signIn.step2": "In Pi Web, open Settings (at the bottom of the sidebar): the MCP section shows. On the row of the server \"{name}\" (project part), click \"Sign in\" and sign in. In the container, the return page (http://127.0.0.1:…/callback?code=…) does not load: copy its full address from the address bar, paste it into Pi Web's \"Address the browser landed on\" field, then click \"Continue\".",
   "studio.mcp.signIn.step3": "Come back to the Studio and inspect again.",
   "studio.mcp.signIn.note": "The sign-in holds for this server at this address and under this identifier: renaming it or changing its address needs a new sign-in.",
   "studio.mcp.signIn.open": "Open this pack in Pi Web",

@@ -543,7 +543,7 @@ export const studioFrMessages: Record<string, string> = {
   "studio.mcp.signedIn": "Ce serveur est connecté par compte (OAuth) depuis Pi Web : l'inspection et les campagnes utilisent cette connexion.",
   "studio.mcp.signIn.title": "Ce serveur demande une connexion par compte (OAuth). Le Studio ne la fait pas lui-même, mais il utilise celle de Pi Web :",
   "studio.mcp.signIn.step1": "Cliquez sur « Ouvrir ce pack dans Pi Web ».",
-  "studio.mcp.signIn.step2": "Dans Pi Web, ouvrez les Réglages (en bas de la barre latérale) : la rubrique MCP s'affiche. Sur la ligne du serveur « {name} » (partie projet), cliquez sur « Sign in » et suivez la connexion.",
+  "studio.mcp.signIn.step2": "Dans Pi Web, ouvrez les Réglages (en bas de la barre latérale) : la rubrique MCP s'affiche. Sur la ligne du serveur « {name} » (partie projet), cliquez sur « Sign in » et connectez-vous. Dans le conteneur, la page de retour (http://127.0.0.1:…/callback?code=…) ne s'affiche pas : copiez son adresse complète depuis la barre d'adresse, collez-la dans le champ « Address the browser landed on » de Pi Web, puis cliquez sur « Continue ».",
   "studio.mcp.signIn.step3": "Revenez au Studio et relancez l'inspection.",
   "studio.mcp.signIn.note": "La connexion vaut pour ce serveur à cette adresse et sous cet identifiant : si vous le renommez ou changez son adresse, il faudra se reconnecter.",
   "studio.mcp.signIn.open": "Ouvrir ce pack dans Pi Web",
