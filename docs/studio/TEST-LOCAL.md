@@ -492,6 +492,8 @@ Ces deux vérifications demandent le proxy d'authentification (Traefik avec forw
 - **V3** : un compte par personne, chaque version enregistrée sous le bon nom ;
 - **V4** : sans le proxy de confiance, un en-tête d'identité ajouté à la main est ignoré.
 
+La procédure de déploiement et ces deux vérifications sont dans [DEPLOY-VPS.md](DEPLOY-VPS.md) (Traefik avec authentification basique, sans forward-auth).
+
 ---
 
 ## 7. En cas de problème

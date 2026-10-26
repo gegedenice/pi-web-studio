@@ -1103,3 +1103,18 @@ Après V25 et V21 à V24 validées, l'intégratrice demande de pouvoir supprimer
 - **Sessions de test** : avec la case, elles sont supprimées par `deleteSessions()` de pi-web (`lib/session-delete.ts`, celui de la barre latérale), qui garde une session en cours. Leur déroulé reste dans les transcripts `cases/<id>.md`, eux aussi dans l'Historique.
 - **Tests** : `runner.test.mjs` (+1 : refus pendant l'exécution, enregistrement, historique conservé), `pi-executor.integration.test.mjs` (suppression avec les 4 vraies sessions pi-web), e2e (suppression depuis l'écran, la comparaison perd la colonne).
 
+## 17. Déploiement sur le serveur (2026-10-26)
+
+L'intégratrice déploie sur un VPS derrière Traefik, **sans forward-auth**, avec une authentification basique. Fichiers ajoutés : `compose.vps.yml`, `.env.vps.example` (exception ajoutée à `.gitignore`), `docker/studio-users.example.json` et la procédure `docs/studio/DEPLOY-VPS.md`.
+
+| Point | Choix |
+|---|---|
+| Identité (V3) | Le middleware `basicauth` de Traefik écrit l'identifiant connecté dans `Remote-User` (`headerfield`), en **remplaçant** toute valeur envoyée par le navigateur ; le Studio le lit avec `STUDIO_TRUSTED_PROXY=true`. On a donc un nom par personne sans forward-auth, et l'en-tête ajouté à la main est ignoré (V4). Écart à STUDIO.md §7.3, qui prévoyait un forward-auth (`auth@file`). |
+| En-tête `Authorization` | `removeheader=true` : sans cela, pi-web prendrait l'en-tête `Authorization: Basic` que le navigateur renvoie à chaque requête pour un essai de son propre mot de passe, et bloquerait après plusieurs échecs (`proxy.ts`). |
+| Nom d'hôte | `PI_WEB_ALLOWED_HOSTS` = `STUDIO_DOMAIN` : pi-web refuse tout autre nom que `localhost` ou une adresse IP (`lib/request-security.ts`), sinon « Untrusted request » (403). Le même `STUDIO_DOMAIN` sert à la règle de Traefik. Inutile en local, d'où son absence de `.env.example`. |
+| Mot de passe de Pi Web | Obligatoire (`${PI_WEB_PASSWORD:?…}` : Compose refuse de démarrer s'il est vide). Seconde barrière, car les autres conteneurs du réseau `web` joignent le Studio sans Traefik et pourraient y écrire un `Remote-User`. Demandé une fois par navigateur, retenu 30 jours : c'est la question ouverte 5 de la spec, tranchée par « les deux ». |
+| Exposition | Pas de `ports` ; pas de socket Docker ; `.env` obligatoire (`required: true`). |
+| Données | `${STUDIO_DATA_DIR}` (par défaut `/srv/pi-studio-data`) : dépôt des packs, dossier de Pi, liste des personnes. La sauvegarde est la seule copie du dépôt des packs (jamais poussé). |
+
+Test : `container-setup.test.mjs` (+1) vérifie ces règles dans `compose.vps.yml` et la cohérence de `.env.vps.example` avec `studio-users.example.json`. Docker n'est pas disponible dans le cloud : `docker compose -f compose.vps.yml config` (§5 de la procédure) reste à lancer sur le serveur. V3 et V4 se font au déploiement (procédure, §8).
+
