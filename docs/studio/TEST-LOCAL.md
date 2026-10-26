@@ -416,6 +416,24 @@ Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
 
 ### Lot 4 — Valider, publier, exporter
 
+### V25 — Importer un dossier de skill complet
+
+À faire avant V21 si le pack n'a pas encore de skill.
+
+- **Action** : rubrique **Skills**, « Importer », mode « Un dossier de skill complet ». Choisissez le dossier d'une skill (celui qui contient `SKILL.md`), ou déposez-le dans le cadre. Importez, puis ouvrez la skill.
+- **Attendu** :
+  - avant l'import : le nombre de fichiers et leur taille, la liste des fichiers, et un avertissement si le dossier contient des scripts ;
+  - après : « La skill « … » est importée (n fichier(s)). », puis la skill s'ouvre sans erreur, ses liens vers `references/…` compris ;
+  - un dossier sans `SKILL.md` à sa racine est refusé avec un message clair.
+- **Commande** :
+
+  ```powershell
+  studio find /workspace/packs/essai/.pi/skills -type f
+  studio git -C /workspace/packs log --format="%an | %s" -1
+  ```
+
+  On attend tous les fichiers du dossier (sans `.DS_Store` ni `__pycache__`) et un seul enregistrement « Importe skill … ».
+
 ### V21 — Valider le pack
 
 - **Action** : dans le pack `essai`, cliquez sur « Valider » dans l'en-tête. Puis désactivez la variable du jeton d'un serveur (retirez-la du `.env`, redémarrez) et validez de nouveau.

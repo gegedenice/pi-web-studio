@@ -73,7 +73,7 @@ export function readSkill(packId: string, skillName: string): SkillDocument {
   };
 }
 
-function assertNoErrors(issues: ValidationIssue[]): void {
+export function assertNoErrors(issues: ValidationIssue[]): void {
   if (hasErrors(issues)) throw new StudioError("validationFailed", 422, undefined, issues);
 }
 
@@ -120,7 +120,7 @@ export async function saveSkill(
   });
 }
 
-function assertSkillAbsent(packId: string, name: string): void {
+export function assertSkillAbsent(packId: string, name: string): void {
   if (existsSync(resolvePackPath(packId, skillDirRel(name)))) throw new StudioError("skillExists", 409, { name });
 }
 

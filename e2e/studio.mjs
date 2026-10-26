@@ -356,6 +356,29 @@ try {
     assert.equal(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s", "--", `${packId}/.pi/mcp.json`], { encoding: "utf8" }).trim(), `[${packId}] Ajoute serveur MCP biblio`);
     console.log("studio e2e: lot 3 ok (command refused, server added and inspected)");
 
+    // 11 bis. A whole skill folder imported (SKILL.md, references, scripts), stored as it is.
+    const skillDir = join(artifacts, "analyse-citations");
+    mkdirSync(join(skillDir, "references"), { recursive: true });
+    mkdirSync(join(skillDir, "scripts"), { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: analyse-citations\ndescription: Analyse les citations d'un article.\n---\n\nVoir [la méthode](references/methode.md).\n");
+    writeFileSync(join(skillDir, "references/methode.md"), "# Méthode\n");
+    writeFileSync(join(skillDir, "scripts/compte.py"), "print(1)\n");
+    await page.getByRole("navigation").getByRole("button", { name: /^Skills/ }).click();
+    await page.getByRole("button", { name: "Importer", exact: true }).click();
+    const importDialog = page.getByRole("dialog");
+    await importDialog.getByRole("button", { name: "Un dossier de skill complet" }).waitFor();
+    await page.locator("#studio-import-folder").setInputFiles(skillDir);
+    await importDialog.getByText("3 fichier(s)").waitFor();
+    await importDialog.getByText(/Cette skill contient 1 script/).waitFor();
+    await visibleTextIsPlain(page, "folder import");
+    await importDialog.getByRole("button", { name: "Importer", exact: true }).click();
+    await importDialog.getByText("La skill « analyse-citations » est importée (3 fichier(s)).").waitFor();
+    await importDialog.getByRole("button", { name: "Ouvrir la skill" }).click();
+    await page.getByRole("heading", { name: "analyse-citations" }).waitFor();
+    assert.equal(readFileSync(join(packsDir, packId, ".pi/skills/analyse-citations/scripts/compte.py"), "utf8"), "print(1)\n");
+    assert.equal(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(), `[${packId}] Importe skill analyse-citations`);
+    console.log("studio e2e: skill folder import ok");
+
     // 12. Lot 4: validate (the MCP server is queried), publish 0.1 despite the warnings, export it.
     await page.getByRole("button", { name: "Valider", exact: true }).click();
     const checkDialog = page.getByRole("dialog");

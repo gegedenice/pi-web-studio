@@ -52,6 +52,22 @@ export function writePackTextAtomic(absPath: string, content: string): void {
   }
 }
 
+/** Writes bytes atomically like `writePackTextAtomic()`, up to `maxBytes` (an imported skill's assets and scripts). */
+export function writePackBytesAtomic(absPath: string, content: Buffer, maxBytes: number): void {
+  if (content.length > maxBytes) throw new StudioError("fileTooLarge", 413);
+  const dir = dirname(absPath);
+  mkdirSync(dir, { recursive: true });
+  const temp = join(dir, `.${basename(absPath)}.${randomBytes(6).toString("hex")}.tmp`);
+  try {
+    writeFileSync(temp, content, { mode: 0o644, flag: "wx" });
+    chmodSync(temp, 0o644);
+    renameSync(temp, absPath);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    throw error;
+  }
+}
+
 /** Removes a file, or a directory tree, without following links. */
 export function removePackEntry(absPath: string): void {
   const stats = lstatSync(absPath, { throwIfNoEntry: false });

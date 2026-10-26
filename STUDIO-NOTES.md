@@ -1077,3 +1077,20 @@ Recommandations retenues telles quelles : Q-L4-1 publication refusée tant qu'il
 | L'export d'une version taguée, sans `.studio/runs/` (option pour les inclure) et sans secret. | ✅ Unitaire, routes, e2e. En local : V23. |
 | Le pack exporté reste utilisable sans le Studio. | À vérifier en local : V24. |
 
+### 16.5 Import d'un dossier de skill complet (2026-10-26)
+
+**Demande de l'intégratrice** : importer une skill entière (`SKILL.md` avec `references/`, `scripts/`, `assets/`…), et non plus seulement un `SKILL.md`. Cela remplace la décision Q12 du lot 1, qui limitait l'import à un fichier ; l'import d'un `SKILL.md` seul reste possible.
+
+- **Écran** (Skills › Importer) : deux modes, « Un dossier de skill complet » (par défaut) et « Un fichier SKILL.md seul ». On choisit le dossier (« Choisir un dossier… ») ou on le dépose. Le dialogue montre le nombre de fichiers, leur taille, la liste, et prévient s'il manque le `SKILL.md` ou si le dossier contient des scripts.
+- **Serveur** (`lib/studio/skill-import.ts`, `POST …/skills { importFolder: [{ path, content }] }`, contenu en base64) :
+  - le dossier choisi est retiré des chemins ; `SKILL.md` doit être à sa racine ;
+  - chaque chemin est contrôlé comme les autres fichiers du pack (ni `..`, ni chemin absolu, 12 niveaux au plus) ;
+  - limites : 300 fichiers, 10 Mo par fichier, 25 Mo en tout ;
+  - les restes système sont laissés de côté (`.DS_Store`, `__pycache__`, `.git`, `node_modules`…) ;
+  - le `SKILL.md` est validé avec les autres fichiers déjà présents, si bien que ses liens vers `references/…` sont résolus ;
+  - les fichiers binaires sont gardés octet pour octet ;
+  - un seul enregistrement « Importe skill … » ; en cas d'échec d'écriture, le dossier est retiré.
+- **Scripts** : enregistrés sans droit d'exécution, jamais lancés par le Studio (STUDIO.md §8). Le dialogue les liste et rappelle que l'agent ne peut les lancer qu'avec un outil comme `bash`, qui n'est pas donné par défaut aux sessions de test.
+- **Pas de `.zip`** : le navigateur ne sait pas ouvrir une archive sans bibliothèque, et l'image n'a pas `unzip`. On décompresse d'abord, puis on importe le dossier. À ajouter si le besoin se confirme.
+- **Tests** : `lib/studio/skill-import.test.mjs` (2 : import complet avec fichier binaire, restes système, lien résolu, un enregistrement ; refus : pas de `SKILL.md`, chemin qui sort du dossier, `SKILL.md` sans nom ou incomplet, fichier trop gros, skill existante, nom choisi écrit dans le fichier), et l'e2e (choix d'un vrai dossier dans Chromium).
+

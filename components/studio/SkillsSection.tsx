@@ -144,11 +144,64 @@ function CreateSkillDialog({ packId, onClose, onCreated }: { packId: string; onC
   );
 }
 
+interface PickedFile { path: string; file: File }
+
+const FOLDER_MAX_FILES = 300;
+const FOLDER_MAX_BYTES = 25 * 1024 * 1024;
+const SKIPPED_PARTS = new Set([".DS_Store", "Thumbs.db", "desktop.ini", ".git", "__pycache__", "node_modules", ".venv", ".ipynb_checkpoints"]);
+
+function isSkipped(path: string): boolean {
+  const parts = path.split("/");
+  return parts.some((part) => SKIPPED_PARTS.has(part)) || parts[parts.length - 1].startsWith("._");
+}
+
+/** A dropped folder's files, read through the browser's entries API, with their paths. */
+async function readDroppedEntries(items: DataTransferItemList): Promise<PickedFile[]> {
+  const out: PickedFile[] = [];
+  const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
+      out.push({ path: `${prefix}${entry.name}`, file });
+      return;
+    }
+    if (!entry.isDirectory) return;
+    const reader = (entry as FileSystemDirectoryEntry).createReader();
+    for (;;) {
+      const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+      if (!batch.length) break;
+      for (const child of batch) await walk(child, `${prefix}${entry.name}/`);
+    }
+  };
+  const roots = Array.from(items).map((item) => item.webkitGetAsEntry?.()).filter((entry): entry is FileSystemEntry => Boolean(entry));
+  for (const root of roots) await walk(root, "");
+  return out;
+}
+
+async function toBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+}
+
+/** Paths without the picked folder itself, as the server will store them. */
+function innerPath(path: string, all: PickedFile[]): string {
+  const first = all[0]?.path.split("/")[0];
+  const wrapped = all.every((item) => item.path.includes("/") && item.path.split("/")[0] === first);
+  return wrapped ? path.split("/").slice(1).join("/") : path;
+}
+
+interface FolderImportResponse { skill: SkillDocument; files: string[]; skipped: string[]; scripts: string[] }
+
 function ImportSkillDialog({ packId, onClose, onImported }: { packId: string; onClose: () => void; onImported: (name: string) => void }) {
   const { t } = useI18n();
+  const [mode, setMode] = useState<"folder" | "file">("folder");
   const [raw, setRaw] = useState("");
+  const [picked, setPicked] = useState<PickedFile[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<FolderImportResponse | null>(null);
   const [error, setError] = useState<{ text: string; issues?: ValidationIssue[]; needsName?: boolean } | null>(null);
 
   const onFile = async (file: File | undefined) => {
@@ -161,19 +214,65 @@ function ImportSkillDialog({ packId, onClose, onImported }: { packId: string; on
     if (!name) setName(slugify(file.name.replace(/\.md$/i, "").replace(/^skill$/i, "")));
   };
 
+  const pick = (files: PickedFile[]) => {
+    setError(null);
+    setPicked(files.filter((item) => !isSkipped(item.path)));
+  };
+
+  const kept = picked;
+  const totalBytes = kept.reduce((sum, item) => sum + item.file.size, 0);
+  const hasSkillFile = kept.some((item) => innerPath(item.path, kept) === "SKILL.md");
+  const scripts = kept.map((item) => innerPath(item.path, kept)).filter((path) => path.startsWith("scripts/") || /\.(sh|py|js|mjs|ts|rb|pl|ps1|bat|cmd|exe)$/i.test(path));
+  const folderName = kept[0]?.path.includes("/") ? kept[0].path.split("/")[0] : "";
+  const tooMany = kept.length > FOLDER_MAX_FILES;
+  const tooLarge = totalBytes > FOLDER_MAX_BYTES;
+
+  const fail = (cause: unknown) => {
+    const failure = cause instanceof StudioRequestError ? cause : null;
+    setError({ text: errorMessage(cause, t), issues: failure?.issues, needsName: failure?.code === "importNameMissing" });
+    setBusy(false);
+  };
+
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      const data = await studioFetch<{ skill: SkillDocument }>(packPath(packId, "/skills"), { method: "POST", body: { import: raw, name: name || undefined } });
-      onImported(data.skill.name);
+      if (mode === "file") {
+        const data = await studioFetch<{ skill: SkillDocument }>(packPath(packId, "/skills"), { method: "POST", body: { import: raw, name: name || undefined } });
+        onImported(data.skill.name);
+        return;
+      }
+      const files = await Promise.all(kept.map(async (item) => ({ path: item.path, content: await toBase64(item.file) })));
+      const data = await studioFetch<FolderImportResponse>(packPath(packId, "/skills"), { method: "POST", body: { importFolder: files, name: name || undefined } });
+      if (data.scripts.length || data.skipped.length) {
+        setDone(data);
+        setBusy(false);
+      } else onImported(data.skill.name);
     } catch (cause) {
-      const failure = cause instanceof StudioRequestError ? cause : null;
-      setError({ text: errorMessage(cause, t), issues: failure?.issues, needsName: failure?.code === "importNameMissing" });
-      setBusy(false);
+      fail(cause);
     }
   };
 
+  if (done) {
+    return (
+      <Dialog
+        title={t("studio.skills.importTitle")}
+        onClose={() => onImported(done.skill.name)}
+        footer={<button type="button" className="studio-button is-primary" onClick={() => onImported(done.skill.name)}>{t("studio.skills.importOpen")}</button>}
+      >
+        <Notice kind="info">{t("studio.skills.importDone", { name: done.skill.name, count: done.files.length })}</Notice>
+        {done.scripts.length > 0 && (
+          <Notice kind="warning">
+            {t("studio.skills.importScripts", { count: done.scripts.length })}
+            <ul className="studio-plain-list studio-mono">{done.scripts.map((path) => <li key={path}>{path}</li>)}</ul>
+          </Notice>
+        )}
+        {done.skipped.length > 0 && <p className="studio-hint">{t("studio.skills.importSkipped", { count: done.skipped.length })}</p>}
+      </Dialog>
+    );
+  }
+
+  const ready = mode === "file" ? Boolean(raw.trim()) : kept.length > 0 && hasSkillFile && !tooMany && !tooLarge;
   return (
     <Dialog
       title={t("studio.skills.importTitle")}
@@ -181,19 +280,73 @@ function ImportSkillDialog({ packId, onClose, onImported }: { packId: string; on
       footer={(
         <>
           <button type="button" className="studio-button" onClick={onClose}>{t("studio.common.cancel")}</button>
-          <button type="button" className="studio-button is-primary" disabled={busy || !raw.trim() || (name !== "" && !isSlug(name))} onClick={() => void submit()}>{t("studio.skills.importAction")}</button>
+          <button type="button" className="studio-button is-primary" disabled={busy || !ready || (name !== "" && !isSlug(name))} onClick={() => void submit()}>
+            {busy ? t("studio.skills.importing") : t("studio.skills.importAction")}
+          </button>
         </>
       )}
     >
-      <p className="studio-muted">{t("studio.skills.importIntro")}</p>
-      <div className="studio-field">
-        <label htmlFor="studio-import-file">{t("studio.skills.importFile")}</label>
-        <input id="studio-import-file" type="file" accept=".md,text/markdown,text/plain" onChange={(event) => void onFile(event.target.files?.[0])} />
+      <div className="studio-segmented" role="group" aria-label={t("studio.skills.importMode")}>
+        <button type="button" aria-pressed={mode === "folder"} onClick={() => { setMode("folder"); setError(null); }}>{t("studio.skills.importFolderMode")}</button>
+        <button type="button" aria-pressed={mode === "file"} onClick={() => { setMode("file"); setError(null); }}>{t("studio.skills.importFileMode")}</button>
       </div>
-      <div className="studio-field">
-        <label htmlFor="studio-import-text">{t("studio.skills.importPaste")}</label>
-        <textarea id="studio-import-text" className="studio-textarea is-code" rows={10} value={raw} spellCheck={false} onChange={(event) => setRaw(event.target.value)} />
-      </div>
+      {mode === "folder" ? (
+        <>
+          <p className="studio-muted">{t("studio.skills.importFolderIntro")}</p>
+          <div
+            className={`studio-dropzone${dragging ? " is-dragging" : ""}`}
+            onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              void readDroppedEntries(event.dataTransfer.items).then(pick, () => setError({ text: t("studio.skills.importReadError") }));
+            }}
+          >
+            <p>{t("studio.skills.importDrop")}</p>
+            <label className="studio-button" htmlFor="studio-import-folder">{t("studio.skills.importChooseFolder")}</label>
+            <input
+              id="studio-import-folder"
+              className="studio-visually-hidden"
+              type="file"
+              multiple
+              {...{ webkitdirectory: "", directory: "" }}
+              onChange={(event) => pick(Array.from(event.target.files ?? []).map((file) => ({ path: file.webkitRelativePath || file.name, file })))}
+            />
+          </div>
+          {kept.length > 0 && (
+            <div className="studio-card">
+              <p>
+                <strong>{folderName || t("studio.skills.importFolderUnnamed")}</strong>{" "}
+                <span className="studio-hint">{t("studio.skills.importSummary", { count: kept.length, size: (totalBytes / (1024 * 1024)).toFixed(1) })}</span>
+              </p>
+              {!hasSkillFile && <Notice kind="error">{t("studio.error.importNoSkillFile")}</Notice>}
+              {tooMany && <Notice kind="error">{t("studio.error.importTooManyFiles", { max: FOLDER_MAX_FILES })}</Notice>}
+              {tooLarge && <Notice kind="error">{t("studio.error.importTooLarge", { max: FOLDER_MAX_BYTES / (1024 * 1024) })}</Notice>}
+              {scripts.length > 0 && <Notice kind="warning">{t("studio.skills.importScripts", { count: scripts.length })}</Notice>}
+              <details>
+                <summary>{t("studio.skills.importFiles")}</summary>
+                <ul className="studio-plain-list studio-mono">
+                  {kept.slice(0, 100).map((item) => <li key={item.path}>{innerPath(item.path, kept)}</li>)}
+                  {kept.length > 100 && <li>…</li>}
+                </ul>
+              </details>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="studio-muted">{t("studio.skills.importIntro")}</p>
+          <div className="studio-field">
+            <label htmlFor="studio-import-file">{t("studio.skills.importFile")}</label>
+            <input id="studio-import-file" type="file" accept=".md,text/markdown,text/plain" onChange={(event) => void onFile(event.target.files?.[0])} />
+          </div>
+          <div className="studio-field">
+            <label htmlFor="studio-import-text">{t("studio.skills.importPaste")}</label>
+            <textarea id="studio-import-text" className="studio-textarea is-code" rows={10} value={raw} spellCheck={false} onChange={(event) => setRaw(event.target.value)} />
+          </div>
+        </>
+      )}
       <NameField id="studio-import-name" value={name} onChange={setName} label={error?.needsName ? t("studio.skills.importNameRequired") : t("studio.skills.importName")} />
       {error && <Notice kind="error">{error.text}</Notice>}
       {error?.issues && <ValidationList issues={error.issues} />}
