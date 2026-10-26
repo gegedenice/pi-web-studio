@@ -87,7 +87,15 @@ export function RunsTab({ packId, suites, defaultModel, externalChangeCount, sel
       <div className="studio-detail-pane">
         {notice && <Notice kind="warning">{notice}</Notice>}
         {current ? (
-          <RunView key={current} packId={packId} runId={current} onChanged={() => { void load(); onChanged(); }} onStarted={started} onDirtyChange={onDirtyChange} />
+          <RunView
+            key={current}
+            packId={packId}
+            runId={current}
+            onChanged={() => { void load(); onChanged(); }}
+            onStarted={started}
+            onDeleted={() => { onDirtyChange(false); void load(); onChanged(); onSelect(null); }}
+            onDirtyChange={onDirtyChange}
+          />
         ) : (
           <p className="studio-muted studio-placeholder">{runs?.length ? t("studio.runs.pick") : t("studio.runs.emptyHint")}</p>
         )}
@@ -261,15 +269,17 @@ function LaunchDialog({ packId, suites, defaultModel, externalChangeCount, onClo
 
 interface Review { verdict: Verdict; comment: string }
 
-function RunView({ packId, runId, onChanged, onStarted, onDirtyChange }: {
+function RunView({ packId, runId, onChanged, onStarted, onDeleted, onDirtyChange }: {
   packId: string;
   runId: string;
   onChanged: () => void;
   onStarted: (run: RunFile, unsavedChanges: number) => void;
+  onDeleted: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const { t, locale } = useI18n();
   const [state, setState] = useState<RunState | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Record<string, Review>>({});
   const [openCase, setOpenCase] = useState<string | null>(null);
@@ -368,8 +378,25 @@ function RunView({ packId, runId, onChanged, onStarted, onDirtyChange }: {
           {!state.active && state.unfinished.length > 0 && (
             <button type="button" className="studio-button" disabled={busy} onClick={() => void act("rerun")}>{t("studio.runs.rerun", { count: state.unfinished.length })}</button>
           )}
+          <button
+            type="button"
+            className="studio-button is-danger"
+            disabled={busy || state.active}
+            title={state.active ? t("studio.runs.deleteActive") : undefined}
+            onClick={() => setDeleting(true)}
+          >
+            {t("studio.runs.delete")}
+          </button>
         </div>
       </header>
+      {deleting && (
+        <DeleteRunDialog
+          packId={packId}
+          run={run}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => { setDeleting(false); onDeleted(); }}
+        />
+      )}
       {state.active && <progress className="studio-progress" max={run.cases.length} value={done} aria-label={t("studio.runs.progressLabel")} />}
       {error && <Notice kind="error">{error}</Notice>}
       <ul className="studio-case-list">
@@ -449,5 +476,45 @@ function RunView({ packId, runId, onChanged, onStarted, onDirtyChange }: {
         <button type="button" className="studio-button is-primary" disabled={!dirty || busy} onClick={() => void saveVerdicts()}>{t("studio.runs.saveVerdicts")}</button>
       </div>
     </div>
+  );
+}
+
+function DeleteRunDialog({ packId, run, onClose, onDeleted }: { packId: string; run: RunFile; onClose: () => void; onDeleted: () => void }) {
+  const { t, locale } = useI18n();
+  const [sessions, setSessions] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sessionCount = new Set(run.cases.map((item) => item.sessionId).filter(Boolean)).size;
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await studioFetch(`${runPath(packId, run.runId)}${sessions ? "?sessions=1" : ""}`, { method: "DELETE" });
+      onDeleted();
+    } catch (cause) {
+      setError(errorMessage(cause, t));
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      title={t("studio.runs.deleteTitle", { model: run.model.id, date: formatStudioDate(run.startedAt, locale) })}
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" className="studio-button" onClick={onClose}>{t("studio.common.cancel")}</button>
+          <button type="button" className="studio-button is-danger" disabled={busy} onClick={() => void submit()}>{t("studio.runs.delete")}</button>
+        </>
+      )}
+    >
+      <p>{t("studio.runs.deleteMessage", { count: run.cases.length })}</p>
+      {sessionCount > 0 && (
+        <label className="studio-check-row">
+          <input type="checkbox" checked={sessions} onChange={(event) => setSessions(event.target.checked)} />
+          <span>{t("studio.runs.deleteSessions", { count: sessionCount })}</span>
+        </label>
+      )}
+      {error && <Notice kind="error">{error}</Notice>}
+    </Dialog>
   );
 }

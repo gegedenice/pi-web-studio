@@ -655,4 +655,10 @@ export const studioEnMessages: Record<string, string> = {
   "studio.error.importTooLarge": "The folder is too large (at most {max} MB).",
   "studio.error.importFileTooLarge": "The file {path} is too large (at most {max} MB).",
   "studio.error.importBadPath": "The path {path} is not accepted in a skill.",
+  "studio.runs.delete": "Delete",
+  "studio.runs.deleteActive": "Stop the campaign before deleting it.",
+  "studio.runs.deleteTitle": "Delete the campaign {model} of {date}?",
+  "studio.runs.deleteMessage": "The campaign, its {count} cases, their answers and verdicts leave the lists and the comparison. It stays in the pack history, and in the published versions that held it.",
+  "studio.runs.deleteSessions": "Also delete its {count} test session(s) in Pi Web (cannot be undone; a running session is kept)",
+  "studio.error.runActive": "The campaign \"{run}\" is running: stop it before deleting it.",
 };

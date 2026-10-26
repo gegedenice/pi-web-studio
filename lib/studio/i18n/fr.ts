@@ -660,4 +660,10 @@ export const studioFrMessages: Record<string, string> = {
   "studio.error.importTooLarge": "Le dossier est trop volumineux (au plus {max} Mo).",
   "studio.error.importFileTooLarge": "Le fichier {path} est trop volumineux (au plus {max} Mo).",
   "studio.error.importBadPath": "Le chemin {path} n'est pas accepté dans une skill.",
+  "studio.runs.delete": "Supprimer",
+  "studio.runs.deleteActive": "Arrêtez la campagne avant de la supprimer.",
+  "studio.runs.deleteTitle": "Supprimer la campagne {model} du {date} ?",
+  "studio.runs.deleteMessage": "La campagne, ses {count} cas, leurs réponses et leurs verdicts disparaissent des listes et de la comparaison. Elle reste dans l'Historique du pack, et dans les versions publiées qui la contenaient.",
+  "studio.runs.deleteSessions": "Supprimer aussi ses {count} session(s) de test dans Pi Web (sans retour possible ; une session en cours est gardée)",
+  "studio.error.runActive": "La campagne « {run} » est en cours : arrêtez-la avant de la supprimer.",
 };

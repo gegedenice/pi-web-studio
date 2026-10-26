@@ -420,6 +420,24 @@ try {
     const tag = execFileSync("git", ["-C", packsDir, "tag", "-n1", "--list", `${packId}/v*`], { encoding: "utf8" }).trim();
     assert.match(tag, new RegExp(`^${packId}/v0\\.1\\s+Première version testée sur deux modèles\\.$`));
     console.log("studio e2e: lot 4 ok (validation, publication 0.1, export)");
+
+    // 13. A campaign deleted, with its test sessions; the comparison keeps one column.
+    await page.getByRole("navigation").getByRole("button", { name: "Tests" }).click();
+    await page.getByRole("tab", { name: "Campagnes" }).click();
+    await page.locator(".studio-item-list .studio-item", { hasText: "autre" }).click();
+    await page.getByRole("heading", { name: "llamacpp-e2e/autre" }).waitFor();
+    await page.locator(".studio-section-header").getByRole("button", { name: "Supprimer" }).click();
+    const deleteDialog = page.getByRole("dialog");
+    await deleteDialog.getByText("Supprimer aussi ses 4 session(s) de test dans Pi Web").click();
+    await visibleTextIsPlain(page, "delete campaign");
+    await deleteDialog.getByRole("button", { name: "Supprimer" }).click();
+    await deleteDialog.waitFor({ state: "detached" });
+    assert.equal(await page.locator(".studio-item-list .studio-item").count(), 1);
+    await page.getByRole("tab", { name: "Comparaison" }).click();
+    await page.getByRole("button", { name: "llamacpp-e2e/rapide" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "llamacpp-e2e/autre" }).count(), 0);
+    assert.match(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(), new RegExp(`^\\[${packId}\\] Supprime la campagne .*_autre$`));
+    console.log("studio e2e: campaign deletion ok");
   }
 } catch (error) {
   console.error(error);

@@ -20,6 +20,7 @@ export type StudioAction =
   | { kind: "delete-suite"; name: string }
   | { kind: "run-finished"; runId: string; summary: string }
   | { kind: "verdicts"; runId: string; count: number }
+  | { kind: "delete-run"; runId: string }
   | { kind: "add-mcp"; name: string }
   | { kind: "edit-mcp"; name: string }
   | { kind: "rename-mcp"; from: string; to: string }
@@ -70,6 +71,7 @@ export function describeAction(action: StudioAction): string {
     case "rename-suite": return `Renomme suite ${action.from} en ${action.to}`;
     case "delete-suite": return `Supprime suite ${action.name}`;
     case "run-finished": return `Campagne ${action.runId} : ${action.summary}`;
+    case "delete-run": return `Supprime la campagne ${action.runId}`;
     case "verdicts": return `Verdicts de la campagne ${action.runId} (${action.count} cas)`;
     case "add-mcp": return `Ajoute serveur MCP ${action.name}`;
     case "edit-mcp": return `Modifie serveur MCP ${action.name}`;

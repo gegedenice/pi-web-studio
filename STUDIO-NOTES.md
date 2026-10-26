@@ -1094,3 +1094,12 @@ Recommandations retenues telles quelles : Q-L4-1 publication refusée tant qu'il
 - **Pas de `.zip`** : le navigateur ne sait pas ouvrir une archive sans bibliothèque, et l'image n'a pas `unzip`. On décompresse d'abord, puis on importe le dossier. À ajouter si le besoin se confirme.
 - **Tests** : `lib/studio/skill-import.test.mjs` (2 : import complet avec fichier binaire, restes système, lien résolu, un enregistrement ; refus : pas de `SKILL.md`, chemin qui sort du dossier, `SKILL.md` sans nom ou incomplet, fichier trop gros, skill existante, nom choisi écrit dans le fichier), et l'e2e (choix d'un vrai dossier dans Chromium).
 
+### 16.6 Suppression d'une campagne (2026-10-26)
+
+Après V25 et V21 à V24 validées, l'intégratrice demande de pouvoir supprimer une campagne.
+
+- **Écran** (Tests › Campagnes, en tête de la campagne) : « Supprimer », grisé tant que la campagne tourne (« Arrêtez la campagne avant de la supprimer »). La confirmation rappelle ce qui disparaît et propose « Supprimer aussi ses n session(s) de test dans Pi Web », **décoché** par défaut, car c'est sans retour.
+- **Serveur** (`deleteRun()` dans `lib/studio/tests/runs.ts`, `DELETE …/runs/<id>[?sessions=1]`) : refus si la campagne tourne (`runActive`) ; le dossier `.studio/runs/<id>/` est retiré en un enregistrement « Supprime la campagne <id> », au nom de la personne. La campagne reste dans l'Historique du pack (Git) et dans les versions publiées qui la contenaient ; elle sort de la liste, de la comparaison et de l'étape « Évaluer ».
+- **Sessions de test** : avec la case, elles sont supprimées par `deleteSessions()` de pi-web (`lib/session-delete.ts`, celui de la barre latérale), qui garde une session en cours. Leur déroulé reste dans les transcripts `cases/<id>.md`, eux aussi dans l'Historique.
+- **Tests** : `runner.test.mjs` (+1 : refus pendant l'exécution, enregistrement, historique conservé), `pi-executor.integration.test.mjs` (suppression avec les 4 vraies sessions pi-web), e2e (suppression depuis l'écran, la comparaison perd la colonne).
+

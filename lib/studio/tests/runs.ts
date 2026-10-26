@@ -1,7 +1,8 @@
 import { existsSync, readdirSync } from "node:fs";
 import { serializeByKey } from "../../key-serializer";
+import { deleteSessions } from "../../session-delete";
 import { StudioError } from "../errors";
-import { readPackText, writePackTextAtomic } from "../files";
+import { readPackText, removePackEntry, writePackTextAtomic } from "../files";
 import { type GitAuthor, withPacksLock } from "../git";
 import { commitPackChange, readPackMeta } from "../packs";
 import { assertPackId, resolvePackPath, runDirRel, RUNS_DIR } from "../paths";
@@ -212,4 +213,35 @@ export function newRunCase(base: Pick<RunCase, "suite" | "id" | "requete" | "att
     verdict: null,
     comment: "",
   };
+}
+
+export interface DeletedRun {
+  runId: string;
+  /** Test sessions removed from pi-web, when asked. */
+  sessionsDeleted: number;
+  /** Test sessions kept because one of them is running. */
+  sessionsKept: number;
+}
+
+/**
+ * Removes a campaign's folder (run.json and transcripts) as one version: it
+ * stays in the history, and in any published version that held it. A running
+ * campaign is stopped first. With `sessions`, its `[test]` sessions are also
+ * deleted from pi-web (a running one is kept).
+ */
+export async function deleteRun(packId: string, runIdInput: unknown, author: GitAuthor, options: { sessions?: boolean } = {}): Promise<DeletedRun> {
+  const id = assertPackId(packId);
+  const runId = assertRunId(runIdInput);
+  readPackMeta(id);
+  if (isRunActive(id, runId)) throw new StudioError("runActive", 409, { run: runId });
+  const run = readRunFile(id, runId);
+  await withPacksLock(async () => {
+    removePackEntry(resolvePackPath(id, runDirRel(runId)));
+    await commitPackChange(id, [runDirRel(runId)], { kind: "delete-run", runId }, author);
+  });
+  if (!options.sessions) return { runId, sessionsDeleted: 0, sessionsKept: 0 };
+  const ids = [...new Set(run.cases.map((item) => item.sessionId).filter((value): value is string => Boolean(value)))];
+  if (!ids.length) return { runId, sessionsDeleted: 0, sessionsKept: 0 };
+  const result = await deleteSessions(ids, { keepRunning: true });
+  return { runId, sessionsDeleted: result.deleted.length, sessionsKept: result.running.length };
 }

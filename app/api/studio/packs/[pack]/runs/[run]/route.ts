@@ -1,8 +1,8 @@
 import { StudioError } from "@/lib/studio/errors";
-import { identityOf, readJsonBody, studioHandle } from "@/lib/studio/route";
+import { identityOf, readJsonBody, searchParam, studioHandle } from "@/lib/studio/route";
 import { piExecutor } from "@/lib/studio/tests/pi-executor";
 import { campaignIsActive, startCampaign, stopCampaign, unfinishedCases } from "@/lib/studio/tests/runner";
-import { readRun, saveVerdicts } from "@/lib/studio/tests/runs";
+import { deleteRun, readRun, saveVerdicts } from "@/lib/studio/tests/runs";
 
 export const dynamic = "force-dynamic";
 
@@ -49,4 +49,10 @@ export async function PUT(req: Request, { params }: Params) {
     const body = await readJsonBody(req);
     return { run: await saveVerdicts(pack, run, body.verdicts, identityOf(req)) };
   });
+}
+
+// DELETE …/runs/<run>[?sessions=1] — removes the campaign (one version); with sessions=1 its test sessions too.
+export async function DELETE(req: Request, { params }: Params) {
+  const { pack, run } = await params;
+  return studioHandle(async () => deleteRun(pack, run, identityOf(req), { sessions: searchParam(req, "sessions") === "1" }));
 }

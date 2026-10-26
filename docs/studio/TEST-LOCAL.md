@@ -477,6 +477,14 @@ Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
   Pi demande d'approuver le dossier : acceptez. Puis demandez « Quelles skills et quels outils MCP as-tu ? ».
 - **Attendu** : Pi cite les skills du pack et les outils `mcp__…` de ses serveurs (le jeton est lu dans la variable d'environnement du conteneur).
 
+### V26 — Supprimer une campagne
+
+- **Action** : Tests › Campagnes, ouvrez une campagne terminée, cliquez sur « Supprimer ». Cochez « Supprimer aussi ses … session(s) de test dans Pi Web », confirmez. Essayez aussi « Supprimer » pendant qu'une campagne tourne.
+- **Attendu** :
+  - la campagne disparaît de la liste et de la Comparaison ; dans Pi Web, ses sessions `[test] …` ont disparu de la barre latérale ;
+  - pendant qu'une campagne tourne, « Supprimer » est grisé ;
+  - l'Historique du pack montre « Supprime la campagne … ».
+
 ### V3 et V4 — Au déploiement
 
 Ces deux vérifications demandent le proxy d'authentification (Traefik avec forward-auth). Elles se font donc **au déploiement**, pas en local :
