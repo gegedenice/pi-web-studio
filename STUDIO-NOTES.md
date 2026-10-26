@@ -1118,3 +1118,10 @@ L'intégratrice déploie sur un VPS derrière Traefik, **sans forward-auth**, av
 
 Test : `container-setup.test.mjs` (+1) vérifie ces règles dans `compose.vps.yml` et la cohérence de `.env.vps.example` avec `studio-users.example.json`. Docker n'est pas disponible dans le cloud : `docker compose -f compose.vps.yml config` (§5 de la procédure) reste à lancer sur le serveur. V3 et V4 se font au déploiement (procédure, §8).
 
+### 17.1 Premier démarrage sur le serveur (2026-10-26)
+
+Le conteneur démarre, mais le site répond 404 : Traefik écarte la configuration du conteneur, avec `error parsing BasicUser` dans son journal. Une entrée de `STUDIO_BASIC_AUTH_USERS` n'était pas la ligne produite par `htpasswd`. L'exemple `geraldine:$2y$05$remplacez-moi` invitait à compléter l'empreinte par le mot de passe en clair. **Correctifs** :
+
+- `.env.vps.example` : `geraldine:EMPREINTE-HTPASSWD`, avec la commande et l'avertissement en commentaire ; un test refuse le retour d'une demi-empreinte dans l'exemple ;
+- `DEPLOY-VPS.md` : contrôle de chaque entrée telle que Traefik la reçoit (`docker inspect` des labels, 60 caractères, préfixe `$2y$`), une note sur les `$` doublés dans la sortie de `docker compose config`, et un tableau « En cas de problème » (§8 bis).
+

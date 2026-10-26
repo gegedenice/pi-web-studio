@@ -52,7 +52,7 @@ Pour chaque personne, chiffrez son mot de passe :
 docker run --rm httpd:2.4-alpine htpasswd -nbB geraldine 'son-mot-de-passe'
 ```
 
-La commande affiche une ligne comme `geraldine:$2y$05$Qx…`. Gardez ces lignes pour le `.env`, séparées par des virgules.
+La commande affiche une ligne comme `geraldine:$2y$05$Qx…`, soit l'identifiant, deux-points, puis une empreinte de **60 caractères** qui commence par `$2y$`. C'est **toute cette ligne** qui va dans le `.env`, jamais le mot de passe en clair. Le mot de passe à taper dans le navigateur reste celui donné à `htpasswd` ; il ne doit pas contenir de `:`.
 
 ## 5. Le fichier `.env`
 
@@ -64,7 +64,7 @@ sudo nano .env
 
 - `STUDIO_DOMAIN` : votre domaine, sans `https://`.
 - `STUDIO_DATA_DIR` : `/srv/pi-studio-data`, ou le dossier choisi au §3.
-- `STUDIO_BASIC_AUTH_USERS` : les lignes du §4, séparées par des virgules, **entre guillemets simples** :
+- `STUDIO_BASIC_AUTH_USERS` : les lignes complètes du §4, séparées par des virgules, **entre guillemets simples** :
 
   ```
   STUDIO_BASIC_AUTH_USERS='geraldine:$2y$05$Qx…,bibliothecaire-1:$2y$05$Lm…'
@@ -79,7 +79,7 @@ Vérifiez ce que Compose comprend, sans rien démarrer :
 docker compose -f compose.vps.yml config | grep -E 'Host\(|basicauth.users|PI_WEB_ALLOWED_HOSTS'
 ```
 
-On doit voir votre domaine et les empreintes complètes (avec leurs `$`). Si une empreinte est tronquée, vérifiez les guillemets simples.
+On doit voir votre domaine et les empreintes. Dans cette sortie, Compose **double** les `$` (`$$2y$$05$$…`) : c'est normal, Traefik reçoit bien des `$` simples.
 
 ## 6. Démarrer
 
@@ -89,6 +89,15 @@ docker compose -f compose.vps.yml logs -f
 ```
 
 On attend dans le journal les lignes `[entrypoint] …` (dossier des packs approuvé pour Pi, dépôt créé au premier démarrage) puis `starting PI Studio on 0.0.0.0:30141`. Ouvrez `https://<votre domaine>` : le navigateur demande l'identifiant et le mot de passe du §4, puis Pi Web demande son mot de passe, et le Studio s'affiche.
+
+Contrôlez ensuite les entrées de l'authentification basique telles que Traefik les reçoit, une par une :
+
+```bash
+docker inspect pi-studio-pi-studio-1 --format '{{index .Config.Labels "traefik.http.middlewares.pi-studio-auth.basicauth.users"}}' \
+  | tr ',' '\n' | awk -F: '{ print $1, (NF == 2 && length($2) == 60 && $2 ~ /^\$2[aby]\$/) ? "ok" : "À REFAIRE" }'
+```
+
+Chaque identifiant doit afficher `ok`. « À REFAIRE » : l'entrée n'est pas la ligne de `htpasswd` (mot de passe en clair, empreinte tronquée faute de guillemets simples, `:` en trop). Corrigez le `.env`, puis relancez `docker compose -f compose.vps.yml up -d`.
 
 ## 7. Configurer le provider et les serveurs MCP
 
@@ -127,6 +136,17 @@ rm jar
 ### Et aussi
 
 - Refaites V1 (Pi en ligne de commande dans le conteneur), V17 (inspection d'un serveur MCP) et une campagne courte : le serveur n'a pas les mêmes accès réseau que votre poste.
+
+## 8 bis. En cas de problème
+
+| Symptôme | Cause et remède |
+|---|---|
+| `404 page not found` (texte brut), sans demande d'identifiant | Traefik n'a pas créé la route. Lisez son journal : `docker logs <traefik> 2>&1 \| grep -iE "pi-studio\|error" \| tail`. |
+| … et `error parsing BasicUser` dans ce journal | Une entrée de `STUDIO_BASIC_AUTH_USERS` n'est pas une ligne de `htpasswd` (§4, contrôle du §6). Corrigez le `.env`, puis `docker compose -f compose.vps.yml up -d`. |
+| … et `EntryPoint doesn't exist` ou un résolveur inconnu | Les noms `websecure` ou `le` ne sont pas ceux de votre Traefik : adaptez les labels de `compose.vps.yml`. |
+| `Untrusted request` (403) | `STUDIO_DOMAIN` ne correspond pas exactement au nom tapé dans le navigateur. |
+| La page de connexion de Pi Web refuse un bon mot de passe et parle de tentatives | Le label `basicauth.removeheader=true` manque : Pi Web prend l'authentification basique pour des essais de son mot de passe. Attendez la fin du blocage après avoir corrigé. |
+| Le build s'arrête en `EOF` | Mémoire insuffisante (§1). |
 
 ## 9. Sauvegarde
 
