@@ -1,0 +1,66 @@
+# PI Studio sur un serveur, derrière Traefik (HTTPS, authentification basique).
+#   docker compose -f compose.vps.yml up -d --build
+# Procédure complète : docs/studio/DEPLOY-VPS.md. Les valeurs viennent de .env
+# (copie de .env.vps.example), jamais de ce fichier ni de l'image.
+name: pi-studio
+
+services:
+  pi-studio:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        PI_VERSION: "1.2.0"
+    image: pi-studio:prod
+    init: true
+    restart: unless-stopped
+    # Pas de démarrage sans .env : le mot de passe et le domaine y sont.
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      STUDIO_HOME: "true"
+      STUDIO_PACKS_DIR: /workspace/packs
+      PI_CODING_AGENT_DIR: /root/.pi/agent
+      STUDIO_USERS_FILE: /config/studio-users.json
+      # Le Studio est sur Internet, et l'agent dispose de bash : jamais sans mot de passe.
+      PI_WEB_PASSWORD: ${PI_WEB_PASSWORD:?PI_WEB_PASSWORD manque ou est vide dans .env}
+      # pi-web refuse tout nom d'hôte qu'on ne lui a pas donné (lib/request-security.ts).
+      PI_WEB_ALLOWED_HOSTS: ${STUDIO_DOMAIN:?STUDIO_DOMAIN manque dans .env}
+      # L'autrice de chaque version est l'identifiant de l'authentification basique,
+      # que Traefik écrit dans Remote-User (headerfield ci-dessous, qui remplace
+      # toute valeur envoyée par le navigateur).
+      STUDIO_TRUSTED_PROXY: "true"
+      STUDIO_IDENTITY_HEADER: Remote-User
+    volumes:
+      # À sauvegarder : le dépôt des packs (jamais poussé nulle part) et le dossier
+      # de Pi (providers, jetons OAuth des serveurs MCP, sessions).
+      - ${STUDIO_DATA_DIR:-/srv/pi-studio-data}/workspace:/workspace
+      - ${STUDIO_DATA_DIR:-/srv/pi-studio-data}/pi-agent:/root/.pi/agent
+      - ${STUDIO_DATA_DIR:-/srv/pi-studio-data}/studio-users.json:/config/studio-users.json:ro
+    # Pas de "ports" : joignable par Traefik seulement. Pas de socket Docker monté.
+    # Seulement si llama.cpp tourne sur l'hôte de ce serveur (http://host.docker.internal:<port>/v1) :
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+    networks:
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.routers.pi-studio.rule=Host(`${STUDIO_DOMAIN:?STUDIO_DOMAIN manque dans .env}`)
+      - traefik.http.routers.pi-studio.entrypoints=websecure
+      - traefik.http.routers.pi-studio.tls.certresolver=le
+      - traefik.http.routers.pi-studio.service=pi-studio
+      - traefik.http.routers.pi-studio.middlewares=pi-studio-auth
+      - traefik.http.services.pi-studio.loadbalancer.server.port=30141
+      # Authentification basique. removeheader : pi-web prend tout en-tête
+      # « Authorization: Basic » pour un essai de son propre mot de passe (et
+      # bloque après plusieurs échecs), donc Traefik le retire.
+      - traefik.http.middlewares.pi-studio-auth.basicauth.users=${STUDIO_BASIC_AUTH_USERS:?STUDIO_BASIC_AUTH_USERS manque dans .env}
+      - traefik.http.middlewares.pi-studio-auth.basicauth.realm=PI Studio
+      - traefik.http.middlewares.pi-studio-auth.basicauth.headerfield=Remote-User
+      - traefik.http.middlewares.pi-studio-auth.basicauth.removeheader=true
+
+networks:
+  web:
+    external: true

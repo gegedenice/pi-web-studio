@@ -1,0 +1,5 @@
+{
+  "geraldine": { "name": "Géraldine Geoffroy", "email": "prenom.nom@example.fr" },
+  "bibliothecaire-1": { "name": "Prénom Nom", "email": "prenom.nom@example.fr" },
+  "bibliothecaire-2": { "name": "Prénom Nom", "email": "prenom.nom@example.fr" }
+}

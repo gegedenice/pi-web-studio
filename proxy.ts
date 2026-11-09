@@ -14,6 +14,7 @@ import {
   isWebPasswordEnabled,
   PI_WEB_SESSION_COOKIE,
 } from "@/lib/web-auth";
+import { withStudioHome } from "@/lib/studio/home";
 
 function tooManyAttempts(retryAfterMs: number): NextResponse {
   return new NextResponse("Too many failed attempts", {
@@ -44,7 +45,8 @@ export function proxy(request: NextRequest) {
     if (request.nextUrl.pathname === "/login") {
       return NextResponse.redirect(new URL("/", request.url));
     }
-    return NextResponse.next();
+    // PI Studio (fork): STUDIO_HOME=true, see lib/studio/home.ts.
+    return withStudioHome(request, () => NextResponse.next());
   }
 
   let authenticated = isValidWebSessionToken(request.cookies.get(PI_WEB_SESSION_COOKIE)?.value, password);
@@ -85,7 +87,9 @@ export function proxy(request: NextRequest) {
     });
   }
 
-  return NextResponse.next();
+  // PI Studio (fork): STUDIO_HOME=true, see lib/studio/home.ts.
+  return withStudioHome(request, () => NextResponse.next());
 }
 
-export const config = { matcher: ["/", "/login", "/api/:path*"] };
+// PI Studio (fork): /studio pages get the same host and password checks as "/".
+export const config = { matcher: ["/", "/login", "/api/:path*", "/studio", "/studio/:path*"] };

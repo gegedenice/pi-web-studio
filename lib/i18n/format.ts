@@ -76,7 +76,8 @@ export function formatUpdatedTime(timestamp: number, locale: Locale, now = new D
   return formatRelativeTime(target, locale, now);
 }
 
-const SHORT_TIME_UNITS: Record<Locale, { now: string; minute: string; hour: string; day: string; week: string; month: string; year: string }> = {
+// PI Studio (fork): the partial "fr" locale keeps English compact times.
+const SHORT_TIME_UNITS: Record<Exclude<Locale, "fr">, { now: string; minute: string; hour: string; day: string; week: string; month: string; year: string }> = {
   en: { now: "now", minute: "m", hour: "h", day: "d", week: "w", month: "mo", year: "y" },
   "zh-CN": { now: "刚刚", minute: "分", hour: "小时", day: "天", week: "周", month: "个月", year: "年" },
   "zh-TW": { now: "剛剛", minute: "分", hour: "小時", day: "天", week: "週", month: "個月", year: "年" },
@@ -93,7 +94,7 @@ export function formatShortRelativeTime(date: Date | string, locale: Locale, now
   const target = date instanceof Date ? date : new Date(date);
   const elapsedMs = now.getTime() - target.getTime();
   if (Number.isNaN(elapsedMs)) return "";
-  const units = Object.hasOwn(SHORT_TIME_UNITS, locale) ? SHORT_TIME_UNITS[locale] : SHORT_TIME_UNITS.en;
+  const units = Object.hasOwn(SHORT_TIME_UNITS, locale) ? SHORT_TIME_UNITS[locale as keyof typeof SHORT_TIME_UNITS] : SHORT_TIME_UNITS.en;
   const elapsed = Math.max(0, elapsedMs);
   const minutes = Math.floor(elapsed / 60_000);
   if (minutes < 1) return units.now;
