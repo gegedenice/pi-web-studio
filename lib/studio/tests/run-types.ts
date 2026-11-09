@@ -66,6 +66,15 @@ export interface RunSummary {
   suites: string[];
 }
 
+/**
+ * What a campaign is about, for a person: its suites' titles (a deleted suite
+ * keeps its identifier), "N02 Serveur MCP HAL" or "N02 Serveur MCP HAL +2".
+ */
+export function campaignSuitesLabel(suiteNames: readonly string[], titles: Readonly<Record<string, string>>): string {
+  const named = suiteNames.map((name) => titles[name] || name);
+  return named.length > 2 ? `${named[0]} +${named.length - 1}` : named.join(", ");
+}
+
 export function caseKey(item: { suite: string; id: string }): string {
   return `${item.suite}/${item.id}`;
 }

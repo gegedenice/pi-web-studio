@@ -115,6 +115,10 @@ export interface StudioIdentityInfo {
   id: string;
   name: string;
   fallback: boolean;
+  /** Signed in through the proxy's basic authentication: logging out must make the browser forget it. */
+  fromProxy: boolean;
+  /** pi-web's own password is on: logging out clears its session cookie. */
+  webPassword: boolean;
 }
 
 /** Error body of every `/api/studio` route: an i18n key and its parameters. */

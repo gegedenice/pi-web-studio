@@ -14,6 +14,8 @@ export interface ComparisonRow {
 export interface ComparisonColumn {
   runId: string;
   model: string;
+  /** The suites of the campaign, within the filter. */
+  suites: string[];
   startedAt: string;
   packCommit: string;
 }
@@ -26,6 +28,8 @@ export interface ComparisonCell {
 
 export interface Comparison {
   suites: string[];
+  /** Suite titles by name, for the suites that still exist (added by the route). */
+  titles?: Record<string, string>;
   rows: ComparisonRow[];
   columns: ComparisonColumn[];
   cells: Record<string, Record<string, ComparisonCell>>;
@@ -42,7 +46,13 @@ export function compareRuns(runs: RunFile[], suite?: string | null): Comparison 
       return !suite || item.suite === suite;
     });
     if (!cases.length) continue;
-    columns.push({ runId: run.runId, model: `${run.model.provider}/${run.model.id}`, startedAt: run.startedAt, packCommit: run.packCommit });
+    columns.push({
+      runId: run.runId,
+      model: `${run.model.provider}/${run.model.id}`,
+      suites: [...new Set(cases.map((item) => item.suite))],
+      startedAt: run.startedAt,
+      packCommit: run.packCommit,
+    });
     for (const item of cases) {
       const key = caseKey(item);
       if (!rows.has(key)) rows.set(key, { key, suite: item.suite, id: item.id, requete: item.requete });

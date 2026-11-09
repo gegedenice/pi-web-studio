@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { useI18n } from "@/hooks/useI18n";
 import { errorMessage, packPath, studioFetch } from "@/lib/studio/client";
-import { caseKey, type RunCase, type RunFile, type RunSummary, type Verdict, VERDICTS } from "@/lib/studio/tests/run-types";
+import { campaignSuitesLabel, caseKey, type RunCase, type RunFile, type RunSummary, type Verdict, VERDICTS } from "@/lib/studio/tests/run-types";
 import { Dialog, formatStudioDate, Notice, useUnsavedGuard } from "../StudioUi";
 import type { SuiteSummary } from "./SuitesTab";
 
@@ -57,6 +57,7 @@ export function RunsTab({ packId, suites, defaultModel, externalChangeCount, sel
   };
 
   const current = selected && runs?.some((run) => run.runId === selected) ? selected : null;
+  const titles = Object.fromEntries(suites.map((suite) => [suite.name, suite.titre]));
   return (
     <div className="studio-split">
       <aside className="studio-list-pane" aria-label={t("studio.runs.list")}>
@@ -73,8 +74,9 @@ export function RunsTab({ packId, suites, defaultModel, externalChangeCount, sel
             {runs.map((run) => (
               <li key={run.runId}>
                 <button type="button" className={`studio-item${current === run.runId ? " is-selected" : ""}`} aria-current={current === run.runId ? "true" : undefined} onClick={() => onSelect(run.runId)}>
-                  <span className="studio-item-title">{run.model.id}</span>
+                  <span className="studio-item-title is-text">{campaignSuitesLabel(run.suites, titles)}</span>
                   <span className={`studio-badge is-run-${run.status}`}>{t(`studio.runs.runStatus.${run.status}`)}</span>
+                  <span className="studio-item-sub studio-mono">{run.model.id}</span>
                   <span className="studio-item-sub">
                     {formatStudioDate(run.startedAt, locale)} · {t("studio.runs.reviewedCount", { reviewed: run.reviewed, total: run.total })}
                   </span>
@@ -89,6 +91,7 @@ export function RunsTab({ packId, suites, defaultModel, externalChangeCount, sel
         {current ? (
           <RunView
             key={current}
+            titles={titles}
             packId={packId}
             runId={current}
             onChanged={() => { void load(); onChanged(); }}
@@ -269,8 +272,9 @@ function LaunchDialog({ packId, suites, defaultModel, externalChangeCount, onClo
 
 interface Review { verdict: Verdict; comment: string }
 
-function RunView({ packId, runId, onChanged, onStarted, onDeleted, onDirtyChange }: {
+function RunView({ packId, runId, titles, onChanged, onStarted, onDeleted, onDirtyChange }: {
   packId: string;
+  titles: Readonly<Record<string, string>>;
   runId: string;
   onChanged: () => void;
   onStarted: (run: RunFile, unsavedChanges: number) => void;
@@ -365,7 +369,8 @@ function RunView({ packId, runId, onChanged, onStarted, onDeleted, onDirtyChange
     <div className="studio-section">
       <header className="studio-section-header is-row">
         <div>
-          <h2 className="studio-title">{run.model.provider}/{run.model.id}</h2>
+          <h2 className="studio-title">{campaignSuitesLabel([...new Set(run.cases.map((item) => item.suite))], titles)}</h2>
+          <p className="studio-mono">{run.model.provider}/{run.model.id}</p>
           <p className="studio-muted">
             {t("studio.runs.meta", { date: formatStudioDate(run.startedAt, locale), by: run.startedBy })}
             {" · "}{t(`studio.runs.runStatus.${run.status}`)}

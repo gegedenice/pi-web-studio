@@ -133,6 +133,10 @@ rm jar
 
 **Attendu** : `{"id":"geraldine",…}`, et non `bibliothecaire-1`. Sans identifiants, `curl -s -o /dev/null -w '%{http_code}' "$D/studio"` répond `401`.
 
+### Changer de compte
+
+« Se déconnecter », en haut à droite du Studio, efface la session de Pi Web et fait oublier au navigateur l'identifiant de l'authentification basique : la page suivante redemande un identifiant, puis le mot de passe de Pi Web. Safari peut garder l'identifiant jusqu'à sa fermeture : utilisez alors une fenêtre privée par compte.
+
 ### Et aussi
 
 - Refaites V1 (Pi en ligne de commande dans le conteneur), V17 (inspection d'un serveur MCP) et une campagne courte : le serveur n'a pas les mêmes accès réseau que votre poste.

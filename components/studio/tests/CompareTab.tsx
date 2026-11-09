@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { errorMessage, packPath, studioFetch } from "@/lib/studio/client";
 import type { Comparison } from "@/lib/studio/tests/compare";
+import { campaignSuitesLabel } from "@/lib/studio/tests/run-types";
 import { formatStudioDate, Notice } from "../StudioUi";
 
 export function CompareTab({ packId, onOpenRun }: { packId: string; onOpenRun: (runId: string) => void }) {
@@ -49,7 +50,8 @@ export function CompareTab({ packId, onOpenRun }: { packId: string; onOpenRun: (
                 <th scope="col">{t("studio.tests.colQuery")}</th>
                 {comparison.columns.map((column) => (
                   <th key={column.runId} scope="col">
-                    <button type="button" className="studio-link-button" onClick={() => onOpenRun(column.runId)}>{column.model}</button>
+                    <button type="button" className="studio-link-button" onClick={() => onOpenRun(column.runId)}>{campaignSuitesLabel(column.suites, comparison.titles ?? {})}</button>
+                    <span className="studio-hint studio-mono">{column.model}</span>
                     <span className="studio-hint">{formatStudioDate(column.startedAt, locale)}</span>
                   </th>
                 ))}

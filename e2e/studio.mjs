@@ -260,7 +260,7 @@ try {
       await dialog.getByLabel("Modèle par défaut").selectOption(`llamacpp-e2e/${model}`);
       await visibleTextIsPlain(page, "launch dialog");
       await dialog.getByRole("button", { name: "Lancer (4 cas)" }).click();
-      await page.getByRole("heading", { name: `llamacpp-e2e/${model}` }).waitFor();
+      await page.locator(".studio-detail-pane").getByText(`llamacpp-e2e/${model}`, { exact: true }).waitFor();
       await page.getByText("4 / 4 cas terminés").waitFor({ timeout: 120_000 });
       await page.locator(".studio-detail-pane").getByText("Terminée").waitFor({ timeout: 30_000 });
     };
@@ -286,9 +286,21 @@ try {
 
     await campaign("autre");
     await page.getByRole("tab", { name: "Comparaison" }).click();
-    await page.getByRole("button", { name: "llamacpp-e2e/rapide" }).waitFor();
-    await page.getByRole("button", { name: "llamacpp-e2e/autre" }).waitFor();
+    // Each column: the suite's title (a link to the campaign), then the model.
+    const compareHeads = page.locator(".studio-table.is-compare thead th");
+    await compareHeads.filter({ hasText: "llamacpp-e2e/autre" }).waitFor();
+    for (const model of ["rapide", "autre"]) {
+      const head = compareHeads.filter({ hasText: `llamacpp-e2e/${model}` });
+      await head.getByRole("button", { name: "Recherche documentaire" }).waitFor();
+    }
+    // The campaigns list names each campaign by its suite, then its model.
+    await page.getByRole("tab", { name: "Campagnes" }).click();
+    await page.locator(".studio-item-list .studio-item .studio-item-title").nth(1).waitFor();
+    assert.deepEqual(await page.locator(".studio-item-list .studio-item .studio-item-title").allInnerTexts(), ["Recherche documentaire", "Recherche documentaire"]);
+    await page.screenshot({ path: join(artifacts, "7b-campaigns.png") });
+    await page.getByRole("tab", { name: "Comparaison" }).click();
     const table = page.locator(".studio-table.is-compare tbody tr");
+    await table.nth(3).waitFor();
     assert.equal(await table.count(), 4);
     assert.deepEqual(await table.nth(3).locator("td .studio-badge").allInnerTexts(), ["Partiel", "À juger"]);
     await visibleTextIsPlain(page, "comparison");
@@ -425,7 +437,7 @@ try {
     await page.getByRole("navigation").getByRole("button", { name: "Tests" }).click();
     await page.getByRole("tab", { name: "Campagnes" }).click();
     await page.locator(".studio-item-list .studio-item", { hasText: "autre" }).click();
-    await page.getByRole("heading", { name: "llamacpp-e2e/autre" }).waitFor();
+    await page.locator(".studio-detail-pane").getByText("llamacpp-e2e/autre", { exact: true }).waitFor();
     await page.locator(".studio-section-header").getByRole("button", { name: "Supprimer" }).click();
     const deleteDialog = page.getByRole("dialog");
     await deleteDialog.getByText("Supprimer aussi ses 4 session(s) de test dans Pi Web").click();
@@ -434,8 +446,8 @@ try {
     await deleteDialog.waitFor({ state: "detached" });
     assert.equal(await page.locator(".studio-item-list .studio-item").count(), 1);
     await page.getByRole("tab", { name: "Comparaison" }).click();
-    await page.getByRole("button", { name: "llamacpp-e2e/rapide" }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "llamacpp-e2e/autre" }).count(), 0);
+    await page.locator(".studio-table.is-compare thead th").filter({ hasText: "llamacpp-e2e/rapide" }).waitFor();
+    assert.equal(await page.locator(".studio-table.is-compare thead th").filter({ hasText: "llamacpp-e2e/autre" }).count(), 0);
     assert.match(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(), new RegExp(`^\\[${packId}\\] Supprime la campagne .*_autre$`));
     console.log("studio e2e: campaign deletion ok");
   }

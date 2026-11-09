@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { studioFetch } from "@/lib/studio/client";
+import { logout, logoutPlan } from "@/lib/studio/logout";
 import type { PackDetails, StudioIdentityInfo } from "@/lib/studio/types";
 
 export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onExport }: {
@@ -15,10 +16,13 @@ export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onE
 }) {
   const { t } = useI18n();
   const [me, setMe] = useState<StudioIdentityInfo | null>(null);
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
     studioFetch<StudioIdentityInfo>("/me").then(setMe).catch(() => setMe(null));
   }, []);
 
+  // Shown only when there is something to sign out of (local use without a password has nothing).
+  const plan = me ? logoutPlan(me) : null;
   return (
     <header className="studio-header">
       <Link href="/studio" className="studio-brand">
@@ -46,6 +50,11 @@ export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onE
         {onValidate && <button type="button" className="studio-button" onClick={onValidate}>{t("studio.header.validate")}</button>}
         {onExport && <button type="button" className="studio-button" onClick={onExport}>{t("studio.release.export")}</button>}
         <Link className="studio-button" href="/?pi-web">{t("studio.header.back")}</Link>
+        {plan && (
+          <button type="button" className="studio-button" disabled={leaving} onClick={() => { setLeaving(true); void logout(plan); }}>
+            {t("studio.header.logout")}
+          </button>
+        )}
       </div>
     </header>
   );

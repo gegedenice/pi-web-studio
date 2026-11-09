@@ -661,4 +661,5 @@ export const studioEnMessages: Record<string, string> = {
   "studio.runs.deleteMessage": "The campaign, its {count} cases, their answers and verdicts leave the lists and the comparison. It stays in the pack history, and in the published versions that held it.",
   "studio.runs.deleteSessions": "Also delete its {count} test session(s) in Pi Web (cannot be undone; a running session is kept)",
   "studio.error.runActive": "The campaign \"{run}\" is running: stop it before deleting it.",
+  "studio.header.logout": "Sign out",
 };

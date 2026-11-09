@@ -36,7 +36,7 @@ test("the lot 1 journey through the API: create, add a skill, save, restore, wit
   writeFileSync(join(base, "studio-users.json"), JSON.stringify({ geraldine: { name: "Géraldine", email: "g@example.org" } }));
   const as = { "remote-user": "geraldine" };
 
-  assert.deepEqual((await json(await meRoute.GET(request("GET", "/me", undefined, as)))).body, { id: "geraldine", name: "Géraldine", fallback: false });
+  assert.deepEqual((await json(await meRoute.GET(request("GET", "/me", undefined, as)))).body, { id: "geraldine", name: "Géraldine", fallback: false, fromProxy: true, webPassword: false });
 
   let res = await json(await packsRoute.POST(request("POST", "/packs", { id: "literature-review", title: "Revue de littérature" }, as)));
   assert.equal(res.status, 201);

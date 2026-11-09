@@ -666,4 +666,5 @@ export const studioFrMessages: Record<string, string> = {
   "studio.runs.deleteMessage": "La campagne, ses {count} cas, leurs réponses et leurs verdicts disparaissent des listes et de la comparaison. Elle reste dans l'Historique du pack, et dans les versions publiées qui la contenaient.",
   "studio.runs.deleteSessions": "Supprimer aussi ses {count} session(s) de test dans Pi Web (sans retour possible ; une session en cours est gardée)",
   "studio.error.runActive": "La campagne « {run} » est en cours : arrêtez-la avant de la supprimer.",
+  "studio.header.logout": "Se déconnecter",
 };

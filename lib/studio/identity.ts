@@ -10,6 +10,8 @@ export interface StudioIdentity {
   email: string;
   /** True when `studio-users.json` does not know the id: the author is made up from it. */
   fallback: boolean;
+  /** The login came from the trusted proxy (Traefik's basic auth), not from the default user. */
+  fromProxy?: boolean;
 }
 
 interface HeaderSource {
@@ -90,16 +92,20 @@ export function readStudioUsers(path = getStudioConfig().usersFile): Record<stri
 export function getStudioIdentity(headers: HeaderSource): StudioIdentity {
   const config = getStudioConfig();
   let id = cleanLogin(config.defaultUser) ?? "studio";
+  let fromProxy = false;
   if (config.trustedProxy) {
     const raw = headers.get(config.identityHeader);
     const fromHeader = cleanLogin(raw);
-    if (fromHeader) id = fromHeader;
+    if (fromHeader) {
+      id = fromHeader;
+      fromProxy = true;
+    }
     else if (raw) warnOnce(`header:${raw}`, `[studio] ignoring unusable ${config.identityHeader} header value; saving as ${id}.`);
   }
 
   const known = readStudioUsers(config.usersFile)[id];
-  if (known) return { id, name: known.name, email: known.email, fallback: false };
+  if (known) return { id, name: known.name, email: known.email, fallback: false, ...(fromProxy ? { fromProxy } : {}) };
 
   warnOnce(`unknown:${id}`, `[studio] "${id}" is not in ${config.usersFile}; saving as "${id} <${id}@studio.invalid>".`);
-  return { id, name: id, email: `${id}@studio.invalid`, fallback: true };
+  return { id, name: id, email: `${id}@studio.invalid`, fallback: true, ...(fromProxy ? { fromProxy } : {}) };
 }

@@ -1125,3 +1125,26 @@ Le conteneur démarre, mais le site répond 404 : Traefik écarte la configurati
 - `.env.vps.example` : `geraldine:EMPREINTE-HTPASSWD`, avec la commande et l'avertissement en commentaire ; un test refuse le retour d'une demi-empreinte dans l'exemple ;
 - `DEPLOY-VPS.md` : contrôle de chaque entrée telle que Traefik la reçoit (`docker inspect` des labels, 60 caractères, préfixe `$2y$`), une note sur les `$` doublés dans la sortie de `docker compose config`, et un tableau « En cas de problème » (§8 bis).
 
+## 18. Retours après déploiement (2026-11-09)
+
+### 18.1 Pi Web réécrit en /studio : préchargement des liens
+
+**Constat** : l'adresse de Pi Web ne tient pas ; « / » revient sans cesse sur `/studio`.
+
+**Cause** (défaut du Studio, présent depuis le correctif du §10.1) : en production, Next.js précharge les liens visibles. Le bouton « π Studio » de la barre latérale de pi-web est un `<Link href="/studio">` : afficher pi-web suffisait à précharger `/studio`. `lib/studio/home.ts` prenait ce préchargement pour une visite du Studio et effaçait le cookie `pi_studio_place` ; le chargement suivant de « / » repartait donc au Studio. Le défaut inverse existait aussi : dans le Studio, le lien « Retour à Pi Web » (`/?pi-web`), préchargé, choisissait pi-web sans clic. Le serveur de développement ne précharge qu'au survol, d'où un défaut rare en local et constant sur le serveur.
+
+**Correctif** : un préchargement (`Next-Router-Prefetch`, `Next-Router-Segment-Prefetch`, `Purpose` ou `Sec-Purpose: prefetch`) ne change jamais le lieu retenu ; une vraie navigation, clic compris, le change toujours. Test : `proxy.test.mjs` (+1). À vérifier sur le serveur, la cause étant propre au mode production.
+
+### 18.2 « Se déconnecter »
+
+Bouton dans l'en-tête du Studio, affiché seulement quand il y a de quoi se déconnecter (`lib/studio/logout.ts`, `/api/studio/me` qui dit `fromProxy` et `webPassword`) :
+
+- mot de passe de pi-web : `DELETE /api/web-auth` efface le cookie de session ;
+- derrière Traefik (identité venue de `Remote-User`) : une requête avec un compte fictif, que Traefik refuse (401), fait oublier au navigateur le compte de l'authentification basique ; la page suivante (`/studio`) en redemande un. Cette requête n'est jamais envoyée sans Traefik : arrivant à pi-web, l'en-tête Basic compterait comme un mauvais mot de passe.
+
+Chrome, Edge et Firefox oublient ainsi le compte ; Safari peut le garder jusqu'à la fermeture du navigateur (une fenêtre privée par compte reste alors le plus simple). Test : `identity.test.mjs` (+1).
+
+### 18.3 Les campagnes nommées par leur suite
+
+La liste des campagnes, l'en-tête d'une campagne et les colonnes de la Comparaison donnent le titre de la suite (« N02 Serveur MCP HAL ») puis le modèle, au lieu du seul modèle. Une suite supprimée garde son identifiant ; au-delà de deux suites : « N02 Serveur MCP HAL +2 » (`campaignSuitesLabel()` dans `run-types.ts`). Tests : `runner.test.mjs` (+1) et e2e.
+
