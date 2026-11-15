@@ -10,7 +10,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Pinned for the whole mission: package.json pins the SDK to the same version.
-ARG PI_VERSION=1.2.0
+ARG PI_VERSION=1.4.0
 RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@${PI_VERSION} \
   && pi --version
 

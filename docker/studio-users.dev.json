@@ -1,5 +1,5 @@
 {
   "geraldine": { "name": "Géraldine (test local)", "email": "geraldine@studio.invalid" },
-  "bibliothecaire-1": { "name": "Bibliothécaire 1 (test local)", "email": "bibliothecaire-1@studio.invalid" },
-  "bibliothecaire-2": { "name": "Bibliothécaire 2 (test local)", "email": "bibliothecaire-2@studio.invalid" }
+  "magalie": { "name": "Magalie (test local)", "email": "magalie@studio.invalid" },
+  "sandrine": { "name": "Sandrine (test local)", "email": "sandrine@studio.invalid" }
 }
