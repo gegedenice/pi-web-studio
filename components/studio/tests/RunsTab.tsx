@@ -9,7 +9,7 @@ import { Dialog, formatStudioDate, Notice, useUnsavedGuard } from "../StudioUi";
 import type { SuiteSummary } from "./SuitesTab";
 
 interface ModelOption { id: string; name: string; provider: string }
-interface RunState { run: RunFile; active: boolean; unfinished: string[] }
+interface RunState { run: RunFile; startedByName?: string; active: boolean; unfinished: string[] }
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
 const POLL_MS = 2000;
@@ -76,7 +76,7 @@ export function RunsTab({ packId, suites, defaultModel, externalChangeCount, sel
                 <button type="button" className={`studio-item${current === run.runId ? " is-selected" : ""}`} aria-current={current === run.runId ? "true" : undefined} onClick={() => onSelect(run.runId)}>
                   <span className="studio-item-title is-text">{campaignSuitesLabel(run.suites, titles)}</span>
                   <span className={`studio-badge is-run-${run.status}`}>{t(`studio.runs.runStatus.${run.status}`)}</span>
-                  <span className="studio-item-sub studio-mono">{run.model.id}</span>
+                  <span className="studio-item-sub"><span className="studio-mono">{run.model.id}</span> · {run.startedByName}</span>
                   <span className="studio-item-sub">
                     {formatStudioDate(run.startedAt, locale)} · {t("studio.runs.reviewedCount", { reviewed: run.reviewed, total: run.total })}
                   </span>
@@ -372,7 +372,7 @@ function RunView({ packId, runId, titles, onChanged, onStarted, onDeleted, onDir
           <h2 className="studio-title">{campaignSuitesLabel([...new Set(run.cases.map((item) => item.suite))], titles)}</h2>
           <p className="studio-mono">{run.model.provider}/{run.model.id}</p>
           <p className="studio-muted">
-            {t("studio.runs.meta", { date: formatStudioDate(run.startedAt, locale), by: run.startedBy })}
+            {t("studio.runs.meta", { date: formatStudioDate(run.startedAt, locale), by: state.startedByName ?? run.startedBy })}
             {" · "}{t(`studio.runs.runStatus.${run.status}`)}
             {" · "}{t("studio.runs.progress", { done, total: run.cases.length })}
           </p>

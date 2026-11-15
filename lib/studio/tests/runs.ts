@@ -7,6 +7,7 @@ import { type GitAuthor, withPacksLock } from "../git";
 import { commitPackChange, readPackMeta } from "../packs";
 import { assertPackId, resolvePackPath, runDirRel, RUNS_DIR } from "../paths";
 import { slugify } from "../slug";
+import { personName } from "../identity";
 import { isRunActive } from "./active-runs";
 import { CASE_STATUSES, type RunCase, type RunFile, type RunSummary, type Verdict, VERDICTS } from "./run-types";
 
@@ -92,6 +93,7 @@ function summarize(run: RunFile): RunSummary {
     model: run.model,
     startedAt: run.startedAt,
     startedBy: run.startedBy,
+    startedByName: personName(run.startedBy),
     status: run.status,
     packCommit: run.packCommit,
     counts,

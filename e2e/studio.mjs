@@ -297,6 +297,8 @@ try {
     await page.getByRole("tab", { name: "Campagnes" }).click();
     await page.locator(".studio-item-list .studio-item .studio-item-title").nth(1).waitFor();
     assert.deepEqual(await page.locator(".studio-item-list .studio-item .studio-item-title").allInnerTexts(), ["Recherche documentaire", "Recherche documentaire"]);
+    // Then the model and who started the campaign (their name in studio-users.json).
+    assert.deepEqual(await page.locator(".studio-item-list .studio-item .studio-item-sub").first().innerText(), "autre · Géraldine E2E");
     await page.screenshot({ path: join(artifacts, "7b-campaigns.png") });
     await page.getByRole("tab", { name: "Comparaison" }).click();
     const table = page.locator(".studio-table.is-compare tbody tr");

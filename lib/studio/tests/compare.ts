@@ -16,6 +16,9 @@ export interface ComparisonColumn {
   model: string;
   /** The suites of the campaign, within the filter. */
   suites: string[];
+  /** Login of the person who started it; the route adds `startedByName`. */
+  startedBy: string;
+  startedByName?: string;
   startedAt: string;
   packCommit: string;
 }
@@ -50,6 +53,7 @@ export function compareRuns(runs: RunFile[], suite?: string | null): Comparison 
       runId: run.runId,
       model: `${run.model.provider}/${run.model.id}`,
       suites: [...new Set(cases.map((item) => item.suite))],
+      startedBy: run.startedBy,
       startedAt: run.startedAt,
       packCommit: run.packCommit,
     });

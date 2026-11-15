@@ -1148,3 +1148,5 @@ Chrome, Edge et Firefox oublient ainsi le compte ; Safari peut le garder jusqu'�
 
 La liste des campagnes, l'en-tête d'une campagne et les colonnes de la Comparaison donnent le titre de la suite (« N02 Serveur MCP HAL ») puis le modèle, au lieu du seul modèle. Une suite supprimée garde son identifiant ; au-delà de deux suites : « N02 Serveur MCP HAL +2 » (`campaignSuitesLabel()` dans `run-types.ts`). Tests : `runner.test.mjs` (+1) et e2e.
 
+**Complément (2026-11-15)** : la personne qui a lancé la campagne s'affiche aussi, sous le titre de la suite (« qwen/qwen3.8-27b · Géraldine Geoffroy »), dans l'en-tête d'une campagne et dans les colonnes de la Comparaison. Son nom vient de `studio-users.json` (`personName()` dans `identity.ts`), sinon son identifiant ; `run.json` garde l'identifiant (`startedBy`), si bien qu'un nom corrigé dans la liste des personnes vaut aussi pour les campagnes passées. Tests : `runner.test.mjs` (+1) et e2e.
+

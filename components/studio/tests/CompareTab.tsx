@@ -52,6 +52,7 @@ export function CompareTab({ packId, onOpenRun }: { packId: string; onOpenRun: (
                   <th key={column.runId} scope="col">
                     <button type="button" className="studio-link-button" onClick={() => onOpenRun(column.runId)}>{campaignSuitesLabel(column.suites, comparison.titles ?? {})}</button>
                     <span className="studio-hint studio-mono">{column.model}</span>
+                    <span className="studio-hint">{column.startedByName ?? column.startedBy}</span>
                     <span className="studio-hint">{formatStudioDate(column.startedAt, locale)}</span>
                   </th>
                 ))}

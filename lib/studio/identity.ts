@@ -89,6 +89,15 @@ export function readStudioUsers(path = getStudioConfig().usersFile): Record<stri
  * unusable login never blocks a save: the author falls back to the login (or
  * the default user) with a warning in the server log.
  */
+/** A login as people read it: its name in studio-users.json, else the login itself. */
+export function personName(id: string): string {
+  try {
+    return readStudioUsers()[id]?.name || id;
+  } catch {
+    return id;
+  }
+}
+
 export function getStudioIdentity(headers: HeaderSource): StudioIdentity {
   const config = getStudioConfig();
   let id = cleanLogin(config.defaultUser) ?? "studio";

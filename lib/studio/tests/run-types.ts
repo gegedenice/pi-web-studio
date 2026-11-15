@@ -58,6 +58,8 @@ export interface RunSummary {
   model: { provider: string; id: string };
   startedAt: string;
   startedBy: string;
+  /** `startedBy` as people read it (studio-users.json), for the campaign's label. */
+  startedByName: string;
   status: RunStatus;
   packCommit: string;
   counts: Record<CaseStatus, number>;

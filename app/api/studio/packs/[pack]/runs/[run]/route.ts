@@ -1,4 +1,5 @@
 import { StudioError } from "@/lib/studio/errors";
+import { personName } from "@/lib/studio/identity";
 import { identityOf, readJsonBody, searchParam, studioHandle } from "@/lib/studio/route";
 import { piExecutor } from "@/lib/studio/tests/pi-executor";
 import { campaignIsActive, startCampaign, stopCampaign, unfinishedCases } from "@/lib/studio/tests/runner";
@@ -13,7 +14,7 @@ export async function GET(_req: Request, { params }: Params) {
   const { pack, run } = await params;
   return studioHandle(async () => {
     const file = await readRun(pack, run);
-    return { run: file, active: campaignIsActive(pack, file.runId), unfinished: unfinishedCases(file) };
+    return { run: file, startedByName: personName(file.startedBy), active: campaignIsActive(pack, file.runId), unfinished: unfinishedCases(file) };
   });
 }
 
