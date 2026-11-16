@@ -23,6 +23,21 @@ import type { DeletedSkill, ExternalChange, HistoryEntry, TextDocument } from ".
 import { hasErrors } from "./validate";
 
 const SKILL_FILE_PATTERN = /^\.pi\/skills\/([^/]+)\/SKILL\.md$/;
+/** A skill's other files (references/, scripts/, assets/…), edited in the skill's screen. */
+const SKILL_ANNEX_PATTERN = /^\.pi\/skills\/([^/]+)\/(.+)$/;
+const SKILL_ANNEX_MAX_DEPTH = 12;
+
+/** `{ skill, file }` for a skill's annex file, `file` relative to the skill folder; undefined otherwise. */
+export function skillAnnexOf(relPath: string): { skill: string; file: string } | undefined {
+  if (SKILL_FILE_PATTERN.test(relPath)) return undefined;
+  const match = SKILL_ANNEX_PATTERN.exec(relPath);
+  return match ? { skill: match[1], file: match[2] } : undefined;
+}
+
+/** Text the Studio can edit: no NUL byte (a binary file decoded as UTF-8 would be corrupted on save). */
+function isEditableText(content: string): boolean {
+  return !content.includes("\u0000");
+}
 const SUITE_FILE_PATTERN = /^tests\/([^/]+)\.md$/;
 
 /** Files the Studio versions one by one: the editable pack files and each SKILL.md. */
@@ -36,6 +51,12 @@ function assertVersionedFile(relPath: string): string {
   const suite = SUITE_FILE_PATTERN.exec(relPath);
   if (suite) {
     assertSkillName(suite[1]);
+    return relPath;
+  }
+  const annex = skillAnnexOf(relPath);
+  if (annex) {
+    assertSkillName(annex.skill);
+    if (annex.file.split("/").length > SKILL_ANNEX_MAX_DEPTH) throw new StudioError("invalidPath", 400);
     return relPath;
   }
   if (!isEditablePackFile(relPath)) throw new StudioError("fileNotEditable", 403);
@@ -53,6 +74,7 @@ export function readEditableFile(packId: string, relPath: string): TextDocument 
   if (hasOwnEditor(rel)) throw new StudioError("fileNotEditable", 403);
   readPackMeta(id);
   const content = readPackText(resolvePackPath(id, rel));
+  if (content !== undefined && skillAnnexOf(rel) && !isEditableText(content)) throw new StudioError("fileBinary", 415);
   return { path: rel, content: content ?? "", hash: content === undefined ? "" : contentHash(content), exists: content !== undefined };
 }
 
@@ -88,9 +110,16 @@ export async function writeEditableFile(
     const current = readPackText(path);
     const currentHash = current === undefined ? "" : contentHash(current);
     if (baseHash !== currentHash) throw new StudioError("conflict", 409);
+    const annex = skillAnnexOf(rel);
+    if (annex) {
+      // Only next to the skill's own SKILL.md, and only text.
+      if (!existsSync(resolvePackPath(id, skillFileRel(annex.skill)))) throw new StudioError("skillNotFound", 404, { name: annex.skill });
+      if ((current !== undefined && !isEditableText(current)) || !isEditableText(content)) throw new StudioError("fileBinary", 415);
+    }
     if (content !== current) {
       writePackTextAtomic(path, content);
-      await commitPackChange(id, [rel], { kind: "edit-file", path: rel }, author, note);
+      const action = annex && current === undefined ? { kind: "add-skill-file" as const, name: annex.skill, file: annex.file } : { kind: "edit-file" as const, path: rel };
+      await commitPackChange(id, [rel], action, author, note);
     }
     return { path: rel, content, hash: contentHash(content), exists: true };
   });
@@ -239,5 +268,21 @@ export async function discardExternalChanges(packId: string, author: GitAuthor):
       { allowEmpty: true },
     );
     return changes;
+  });
+}
+
+/** Removes one of a skill's annex files as a version; it stays in the pack history. */
+export async function deleteSkillAnnexFile(packId: string, relPath: unknown, author: GitAuthor): Promise<void> {
+  const id = assertPackId(packId);
+  if (typeof relPath !== "string") throw new StudioError("invalidRequest", 400);
+  const rel = assertVersionedFile(relPath);
+  const annex = skillAnnexOf(rel);
+  if (!annex) throw new StudioError("fileNotEditable", 403);
+  await withPacksLock(async () => {
+    readPackMeta(id);
+    const path = resolvePackPath(id, rel);
+    if (!existsSync(path)) throw new StudioError("fileNotFound", 404, { path: annex.file });
+    removePackEntry(path);
+    await commitPackChange(id, [rel], { kind: "delete-skill-file", name: annex.skill, file: annex.file }, author);
   });
 }

@@ -1150,3 +1150,18 @@ La liste des campagnes, l'en-tête d'une campagne et les colonnes de la Comparai
 
 **Complément (2026-11-15)** : la personne qui a lancé la campagne s'affiche aussi, sous le titre de la suite (« qwen/qwen3.8-27b · Géraldine Geoffroy »), dans l'en-tête d'une campagne et dans les colonnes de la Comparaison. Son nom vient de `studio-users.json` (`personName()` dans `identity.ts`), sinon son identifiant ; `run.json` garde l'identifiant (`startedBy`), si bien qu'un nom corrigé dans la liste des personnes vaut aussi pour les campagnes passées. Tests : `runner.test.mjs` (+1) et e2e.
 
+### 18.4 Fichiers de la skill visibles et modifiables (2026-11-16)
+
+Les fichiers d'une skill autres que `SKILL.md` (`references/`, `scripts/`, `assets/`…) n'étaient que listés. La partie « Fichiers de la skill » de l'éditeur (`components/studio/SkillFiles.tsx`) :
+
+- les liste avec leur type (référence, script, ressource, fichier) et leur taille (`skillFileInfo()` dans `skills.ts`) ;
+- ouvre un fichier texte dans le `FileEditor` du lot 1 (Markdown avec aperçu pour un `.md`, texte brut sinon), avec son historique, ses conflits et Ctrl+S ; un fichier binaire est signalé, non modifiable ;
+- ajoute un fichier (créé vide, puis ouvert) et en supprime un, avec confirmation ;
+- chaque changement est une version : « Modifie skill x : references/passes.md », « Ajoute… », « Supprime… ».
+
+Côté serveur, la route des fichiers (`/files`) accepte désormais les fichiers d'une skill, en plus de ceux qu'elle acceptait déjà : `history.ts` (`skillAnnexOf()`, `deleteSkillAnnexFile()`). Restent refusés : `SKILL.md` (il a son propre éditeur), un fichier binaire (octet nul), un chemin qui sort de la skill, une skill qui n'existe pas. Le message général de la partie explique que l'agent ne lit une référence que si le `SKILL.md` y renvoie ; celui d'un script, qu'il n'est jamais exécuté par le Studio. Après chaque changement, la validation de la skill est relue (liens vers `references/…`). Tests : `skill-annex.test.mjs` (1) et e2e.
+
+### 18.5 Lancer une campagne : rien de coché par défaut
+
+Le dialogue « Lancer une campagne » cochait toutes les suites. Il n'en coche plus aucune : « Lancer (0 cas) » reste grisé tant qu'aucune suite n'est choisie. e2e.
+

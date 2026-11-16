@@ -587,3 +587,11 @@
 .studio-dropzone.is-dragging { border-color: var(--accent); background: var(--bg-hover); }
 .studio-dropzone p { margin: 0; }
 .studio-item-title.is-text { font-family: inherit; font-size: 14px; }
+
+/* A skill's other files. */
+.studio-file-list { display: flex; flex-direction: column; gap: 4px; }
+.studio-file-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.studio-file-row:hover { background: var(--bg-hover); }
+.studio-file-row.is-selected { border-color: var(--accent); background: var(--bg-selected); }
+.studio-file-row .studio-mono { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.studio-file-open { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }

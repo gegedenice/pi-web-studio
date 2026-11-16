@@ -11,6 +11,8 @@ export type StudioAction =
   | { kind: "edit-skill"; name: string }
   | { kind: "rename-skill"; from: string; to: string }
   | { kind: "delete-skill"; name: string }
+  | { kind: "add-skill-file"; name: string; file: string }
+  | { kind: "delete-skill-file"; name: string; file: string }
   | { kind: "restore-file"; path: string; date: string }
   | { kind: "restore-skill"; name: string; date: string }
   | { kind: "edit-config" }
@@ -41,6 +43,8 @@ function fileLabel(path: string): string {
   if (path === ".pi/mcp.json") return "serveurs MCP";
   const skill = /^\.pi\/skills\/([^/]+)\/SKILL\.md$/.exec(path);
   if (skill) return `skill ${skill[1]}`;
+  const annex = /^\.pi\/skills\/([^/]+)\/(.+)$/.exec(path);
+  if (annex) return `skill ${annex[1]} : ${annex[2]}`;
   const suite = /^tests\/([^/]+)\.md$/.exec(path);
   if (suite) return `suite ${suite[1]}`;
   return path;
@@ -63,6 +67,8 @@ export function describeAction(action: StudioAction): string {
     case "edit-skill": return `Modifie skill ${action.name}`;
     case "rename-skill": return `Renomme skill ${action.from} en ${action.to}`;
     case "delete-skill": return `Supprime skill ${action.name}`;
+    case "add-skill-file": return `Ajoute skill ${action.name} : ${action.file}`;
+    case "delete-skill-file": return `Supprime skill ${action.name} : ${action.file}`;
     case "restore-file": return `Restaure ${fileLabel(action.path)} (version du ${shortDate(action.date)})`;
     case "restore-skill": return `Restaure skill ${action.name} (supprimée le ${shortDate(action.date)})`;
     case "edit-config": return "Modifie la configuration";

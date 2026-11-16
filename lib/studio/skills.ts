@@ -1,7 +1,7 @@
-import { existsSync, lstatSync, readdirSync, renameSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, openSync, readdirSync, readSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { StudioError } from "./errors";
-import { contentHash, listFilesRecursive, readPackText, removePackEntry, writePackTextAtomic } from "./files";
+import { contentHash, listFilesRecursive, PACK_FILE_MAX_BYTES, readPackText, removePackEntry, writePackTextAtomic } from "./files";
 import { type GitAuthor, withPacksLock } from "./git";
 import { commitPackChange, readPackMeta } from "./packs";
 import { assertPackId, assertSkillName, isSlug, resolvePackPath, SKILLS_DIR, skillDirRel, skillFileRel } from "./paths";
@@ -204,4 +204,42 @@ export async function deleteSkill(packId: string, skillName: unknown, author: Gi
 /** Files of a skill folder, relative to it (shown in the skill's details). */
 export function skillFiles(packId: string, skillName: string): string[] {
   return listFilesRecursive(resolvePackPath(assertPackId(packId), skillDirRel(assertSkillName(skillName))));
+}
+
+/** A skill's file other than SKILL.md, as the skill's screen lists it. */
+export interface SkillFileInfo {
+  /** Relative to the skill folder: `references/passes.md`. */
+  path: string;
+  size: number;
+  /** `references/`, `scripts/` (or a program's extension), `assets/`, or anything else. */
+  kind: "reference" | "script" | "asset" | "other";
+  /** UTF-8 text the Studio can open and edit (up to 1 MiB, no NUL byte). */
+  text: boolean;
+}
+
+const SCRIPT_EXTENSIONS = /\.(sh|bash|zsh|py|js|mjs|cjs|ts|rb|pl|php|ps1|bat|cmd)$/i;
+
+function looksLikeText(absPath: string, size: number): boolean {
+  if (size > PACK_FILE_MAX_BYTES) return false;
+  const fd = openSync(absPath, "r");
+  try {
+    const sample = Buffer.alloc(Math.min(size, 8192));
+    const read = readSync(fd, sample, 0, sample.length, 0);
+    const head = sample.subarray(0, read);
+    return !head.includes(0) && !head.toString("utf8").includes("\uFFFD");
+  } finally {
+    closeSync(fd);
+  }
+}
+
+export function skillFileInfo(packId: string, skillName: string): SkillFileInfo[] {
+  const dir = resolvePackPath(assertPackId(packId), skillDirRel(assertSkillName(skillName)));
+  return skillFiles(packId, skillName).filter((path) => path !== "SKILL.md").map((path) => {
+    const abs = join(dir, path);
+    const size = lstatSync(abs).size;
+    const kind = path.startsWith("references/") ? "reference"
+      : path.startsWith("scripts/") || SCRIPT_EXTENSIONS.test(path) ? "script"
+        : path.startsWith("assets/") ? "asset" : "other";
+    return { path, size, kind, text: looksLikeText(abs, size) };
+  });
 }

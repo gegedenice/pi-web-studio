@@ -1,6 +1,6 @@
 import { StudioError } from "@/lib/studio/errors";
 import { identityOf, readJsonBody, studioHandle } from "@/lib/studio/route";
-import { deleteSkill, readSkill, renameSkill, saveSkill, skillFiles } from "@/lib/studio/skills";
+import { deleteSkill, readSkill, renameSkill, saveSkill, skillFileInfo, skillFiles } from "@/lib/studio/skills";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ type Params = { params: Promise<{ pack: string; skill: string }> };
 // GET /api/studio/packs/<pack>/skills/<skill> — the skill, its validation and its files.
 export async function GET(_req: Request, { params }: Params) {
   const { pack, skill } = await params;
-  return studioHandle(() => ({ skill: readSkill(pack, skill), files: skillFiles(pack, skill) }));
+  return studioHandle(() => ({ skill: readSkill(pack, skill), files: skillFiles(pack, skill), fileInfo: skillFileInfo(pack, skill) }));
 }
 
 // PUT … { description, body, baseHash, note? } (form) or { raw, baseHash, note? } (advanced mode).

@@ -5,7 +5,9 @@ import { useI18n } from "@/hooks/useI18n";
 import { errorMessage, packPath, skillPath, StudioRequestError, studioFetch } from "@/lib/studio/client";
 import { DESCRIPTION_MAX_LENGTH, isSlug, slugify } from "@/lib/studio/slug";
 import type { SkillDocument, SkillSummary, ValidationIssue } from "@/lib/studio/types";
+import type { SkillFileInfo } from "@/lib/studio/skills";
 import { FileHistory } from "./HistoryPanel";
+import { SkillFiles } from "./SkillFiles";
 import { MarkdownEditor, SaveBar } from "./MarkdownEditor";
 import { ConfirmDialog, Dialog, IssueBadge, Notice, useSaveShortcut, useUnsavedGuard, ValidationList } from "./StudioUi";
 
@@ -379,7 +381,8 @@ function SkillEditor({ packId, name, advanced, onChanged, onRenamed, onDeleted, 
 }) {
   const { t } = useI18n();
   const [skill, setSkill] = useState<SkillDocument | null>(null);
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<SkillFileInfo[]>([]);
+  const [filesDirty, setFilesDirty] = useState(false);
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
   const [rawMode, setRawMode] = useState(false);
@@ -404,9 +407,9 @@ function SkillEditor({ packId, name, advanced, onChanged, onRenamed, onDeleted, 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const data = await studioFetch<{ skill: SkillDocument; files: string[] }>(skillPath(packId, name));
+      const data = await studioFetch<{ skill: SkillDocument; fileInfo: SkillFileInfo[] }>(skillPath(packId, name));
       apply(data.skill);
-      setFiles(data.files);
+      setFiles(data.fileInfo);
     } catch (cause) {
       setError({ text: errorMessage(cause, t) });
     }
@@ -416,7 +419,7 @@ function SkillEditor({ packId, name, advanced, onChanged, onRenamed, onDeleted, 
   useEffect(() => { if (!advanced) setRawMode(false); }, [advanced]);
 
   const dirty = skill !== null && (rawMode ? raw !== skill.raw : description !== skill.description || body !== skill.body);
-  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+  useEffect(() => onDirtyChange(dirty || filesDirty), [dirty, filesDirty, onDirtyChange]);
   useUnsavedGuard(dirty);
 
   const switchMode = (next: boolean) => {
@@ -454,7 +457,6 @@ function SkillEditor({ packId, name, advanced, onChanged, onRenamed, onDeleted, 
 
   if (!skill) return error ? <Notice kind="error">{error.text}</Notice> : <p className="studio-muted">{t("studio.common.loading")}</p>;
 
-  const otherFiles = files.filter((file) => file !== "SKILL.md");
   return (
     <div className="studio-section">
       <header className="studio-section-header is-row">
@@ -506,13 +508,20 @@ function SkillEditor({ packId, name, advanced, onChanged, onRenamed, onDeleted, 
           </button>
         )}
       />
-      {otherFiles.length > 0 && (
-        <section className="studio-card">
-          <h3 className="studio-subtitle">{t("studio.skills.files")}</h3>
-          <ul className="studio-plain-list studio-mono">{otherFiles.map((file) => <li key={file}>{file}</li>)}</ul>
-          <p className="studio-hint">{t("studio.skills.filesHint")}</p>
-        </section>
-      )}
+      <SkillFiles
+        packId={packId}
+        skill={name}
+        files={files}
+        onChanged={() => {
+          // Reload the file list only: a draft of SKILL.md in progress is kept.
+          void studioFetch<{ skill: SkillDocument; fileInfo: SkillFileInfo[] }>(skillPath(packId, name)).then((data) => {
+            setFiles(data.fileInfo);
+            setIssues(data.skill.issues);
+          }, () => undefined);
+          onChanged();
+        }}
+        onDirtyChange={setFilesDirty}
+      />
       {showHistory && (
         <FileHistory
           packId={packId}

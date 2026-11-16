@@ -257,6 +257,9 @@ try {
       await page.getByRole("tab", { name: "Campagnes" }).click();
       await page.getByRole("button", { name: "Lancer une campagne" }).click();
       const dialog = page.getByRole("dialog");
+      // Nothing is ticked by default: a campaign tests only the suites chosen.
+      assert.equal(await dialog.getByRole("button", { name: "Lancer (0 cas)" }).isDisabled(), true);
+      await dialog.getByLabel(/Recherche documentaire/).check();
       await dialog.getByLabel("Modèle par défaut").selectOption(`llamacpp-e2e/${model}`);
       await visibleTextIsPlain(page, "launch dialog");
       await dialog.getByRole("button", { name: "Lancer (4 cas)" }).click();
@@ -391,7 +394,28 @@ try {
     await page.getByRole("heading", { name: "analyse-citations" }).waitFor();
     assert.equal(readFileSync(join(packsDir, packId, ".pi/skills/analyse-citations/scripts/compte.py"), "utf8"), "print(1)\n");
     assert.equal(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(), `[${packId}] Importe skill analyse-citations`);
-    console.log("studio e2e: skill folder import ok");
+    // The skill's other files: a reference edited and saved, a file added, a script deleted.
+    await page.locator(".studio-file-row", { hasText: "references/methode.md" }).click();
+    const fileEditor = page.locator(".studio-file-open");
+    await fileEditor.locator("textarea").fill("# Méthode\n\nCompter les citations par année.\n");
+    await fileEditor.getByRole("button", { name: "Enregistrer" }).click();
+    await fileEditor.getByText("Tout est enregistré").waitFor();
+    assert.equal(readFileSync(join(packsDir, packId, ".pi/skills/analyse-citations/references/methode.md"), "utf8"), "# Méthode\n\nCompter les citations par année.\n");
+    assert.equal(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(), `[${packId}] Modifie skill analyse-citations : references/methode.md`);
+    await visibleTextIsPlain(page, "skill file");
+    await page.screenshot({ path: join(artifacts, "8b-skill-files.png"), fullPage: true });
+    await page.getByRole("button", { name: "Ajouter un fichier" }).click();
+    await page.getByRole("dialog").getByLabel("Chemin dans la skill").fill("references/exemple.md");
+    await page.getByRole("dialog").getByRole("button", { name: "Créer le fichier" }).click();
+    await page.locator(".studio-file-row", { hasText: "references/exemple.md" }).waitFor();
+    assert.equal(existsSync(join(packsDir, packId, ".pi/skills/analyse-citations/references/exemple.md")), true);
+    await page.locator(".studio-file-row", { hasText: "scripts/compte.py" }).click();
+    await page.getByText("Le Studio n'exécute jamais ce script.").waitFor();
+    await page.locator(".studio-file-open").getByRole("button", { name: "Supprimer le fichier" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Supprimer le fichier" }).click();
+    await page.locator(".studio-file-row", { hasText: "scripts/compte.py" }).waitFor({ state: "detached" });
+    assert.equal(execFileSync("git", ["-C", packsDir, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim(), `[${packId}] Supprime skill analyse-citations : scripts/compte.py`);
+    console.log("studio e2e: skill folder import and skill files ok");
 
     // 12. Lot 4: validate (the MCP server is queried), publish 0.1 despite the warnings, export it.
     await page.getByRole("button", { name: "Valider", exact: true }).click();

@@ -120,7 +120,8 @@ function LaunchDialog({ packId, suites, defaultModel, externalChangeCount, onClo
 }) {
   const { t } = useI18n();
   const runnable = suites.filter((suite) => !suite.issues.some((issue) => issue.severity === "error") && suite.caseCount > 0);
-  const [chosen, setChosen] = useState<string[]>(runnable.map((suite) => suite.name));
+  // Nothing ticked: the person picks the suites, so no campaign runs everything by mistake.
+  const [chosen, setChosen] = useState<string[]>([]);
   const [pickCases, setPickCases] = useState(false);
   const [caseIds, setCaseIds] = useState<Record<string, string[]>>({});
   const [chosenCases, setChosenCases] = useState<Set<string>>(new Set());
