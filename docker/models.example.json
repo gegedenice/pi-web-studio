@@ -1,0 +1,12 @@
+{
+  "providers": {
+    "llamacpp-hote": {
+      "baseUrl": "http://host.docker.internal:8080/v1",
+      "api": "openai-completions",
+      "apiKey": "local",
+      "models": [
+        { "id": "Qwen3-VL-8B-Instruct", "name": "Qwen3-VL-8B (llama.cpp sur l'hôte)", "input": ["text", "image"] }
+      ]
+    }
+  }
+}
