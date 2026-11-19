@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useImperativeHandle, useLayoutEffect, useState, useCallback, useMemo, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type Ref, type RefObject, type UIEvent as ReactUIEvent } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { listSessionFamilies, type SessionFamily } from "@/lib/session-family";
@@ -2628,10 +2627,12 @@ export function SessionSidebar({ selectedSessionId, onSelectSession, onNewSessio
           <SearchIcon size={16} />
         </button>
         {/* PI Studio (fork): the Studio's entry, a product name kept untranslated. */}
-        <Link href="/studio" className="sidebar-new-button" title="PI Studio" aria-label="PI Studio" style={{ textDecoration: "none" }}>
+        {/* A plain link: a page load is what tells the Studio it was opened (lib/studio/home.ts). */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a page load on purpose */}
+        <a href="/studio" className="sidebar-new-button" title="PI Studio" aria-label="PI Studio" style={{ textDecoration: "none" }}>
           <span aria-hidden="true">π</span>
           <span className="sidebar-new-label" aria-hidden="true">Studio</span>
-        </Link>
+        </a>
       </div>
 
       {/* Sessions: every project's sessions, or the archive. A tab's panel,

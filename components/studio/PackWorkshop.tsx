@@ -290,7 +290,8 @@ function ProvidersSection() {
       </header>
       <div className="studio-card">
         <p>{t("studio.providers.howTo")}</p>
-        <Link className="studio-button is-primary" href="/?pi-web" onClick={() => setLastSettingsSection("models")}>{t("studio.providers.open")}</Link>
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a page load sets the place (lib/studio/home.ts) */}
+        <a className="studio-button is-primary" href="/?pi-web" onClick={() => setLastSettingsSection("models")}>{t("studio.providers.open")}</a>
       </div>
     </div>
   );

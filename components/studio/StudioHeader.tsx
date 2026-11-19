@@ -49,7 +49,9 @@ export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onE
         )}
         {onValidate && <button type="button" className="studio-button" onClick={onValidate}>{t("studio.header.validate")}</button>}
         {onExport && <button type="button" className="studio-button" onClick={onExport}>{t("studio.release.export")}</button>}
-        <Link className="studio-button" href="/?pi-web">{t("studio.header.back")}</Link>
+        {/* A plain link: a page load is what tells the Studio pi-web was chosen (lib/studio/home.ts). */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- a page load on purpose */}
+        <a className="studio-button" href="/?pi-web">{t("studio.header.back")}</a>
         {plan && (
           <button type="button" className="studio-button" disabled={leaving} onClick={() => { setLeaving(true); void logout(plan); }}>
             {t("studio.header.logout")}

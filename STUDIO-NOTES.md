@@ -1165,3 +1165,19 @@ Côté serveur, la route des fichiers (`/files`) accepte désormais les fichiers
 
 Le dialogue « Lancer une campagne » cochait toutes les suites. Il n'en coche plus aucune : « Lancer (0 cas) » reste grisé tant qu'aucune suite n'est choisie. e2e.
 
+
+### 18.6 Pi Web réécrit en /studio, suite : le correctif du §18.1 ne tenait pas (2026-11-19)
+
+**Constat** : après le §18.1, `/?pi-web` ne tient toujours pas sur le serveur ; on revient sur `/studio`.
+
+**Cause** : le §18.1 a été vérifié contre le serveur de développement seulement. Dans un build de production, Next.js retire les en-têtes `rsc`, `next-router-prefetch`, `next-router-segment-prefetch`, `next-router-state-tree` et le paramètre `_rsc` **avant** le proxy : celui-ci ne voit donc aucune différence entre un préchargement, une navigation du routeur et un chargement de page. Le préchargement de « π Studio » effaçait encore le lieu, et le `router.replace("/")` de pi-web était redirigé vers `/studio`. En plus, le service worker de pi-web (`public/sw.js`, actif en production seulement) refait chaque navigation avec `fetch(request)` ; cette requête arrive au serveur avec `Sec-Fetch-Dest: empty` et `Sec-Fetch-Mode: same-origin`, mais avec l'`Accept: text/html…` du navigateur.
+
+**Correctif** (`lib/studio/home.ts`) :
+- seul un chargement de page change le lieu ou redirige « / » :
+  - `Sec-Fetch-Dest: document` ;
+  - ou `empty` avec un `Accept` commençant par `text/html` (navigation transmise par le service worker) ;
+  - sans Fetch Metadata : `Accept: text/html`.
+  Les requêtes du routeur Next envoient `Accept: */*` et ne changent donc jamais rien ;
+- « π Studio » (barre latérale de pi-web), « Retour à Pi Web » et le lien vers les providers de l'atelier sont des `<a>` simples : un clic est un chargement de page, c'est lui qui fixe le lieu.
+
+**Vérifié sur un build de production** (`next start`, `STUDIO_HOME=true`, mot de passe, service worker actif) : connexion → `/studio` ; « Retour à Pi Web » → `/?pi-web`, lieu pi-web ; F5, saisie de `/`, `/?pi-web`, `/` ×2 → pi-web reste ; clic « π Studio » → `/studio`, lieu effacé ; saisie de `/` → `/studio`. Tests : `proxy.test.mjs` (préchargements et fetchs sans effet, chargements directs et via le service worker).
