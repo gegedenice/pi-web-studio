@@ -599,3 +599,21 @@
 /* Configuration: the pack's identifier and its deletion (STUDIO-NOTES §19). */
 .studio-readonly-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .studio-danger-zone { border-color: #ef4444; }
+
+/* « Discuter » (STUDIO-NOTES §19.3): the pack's conversations and pi-web's chat. */
+.studio-chat-section { display: flex; flex-direction: column; min-height: 0; }
+.studio-chat-layout { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 12px; height: calc(100dvh - 230px); min-height: 420px; }
+.studio-chat-list { overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px; background: var(--bg-panel); }
+.studio-chat-row { display: flex; align-items: stretch; gap: 2px; border-radius: 6px; }
+.studio-chat-row.is-selected, .studio-chat-row:hover { background: var(--bg-hover); }
+.studio-chat-open { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 8px; background: none; border: 0; color: var(--text); cursor: pointer; font: inherit; }
+.studio-chat-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.studio-icon-button { background: none; border: 0; color: var(--text-muted); cursor: pointer; padding: 0 8px; font-size: 16px; }
+.studio-icon-button:hover { color: #ef4444; }
+.studio-chat-pane { min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; }
+.studio-chat-pane > .studio-empty { margin: auto; }
+.studio-chat-window { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
+@media (max-width: 760px) {
+  .studio-chat-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(420px, 1fr); height: auto; }
+  .studio-chat-list { max-height: 180px; }
+}

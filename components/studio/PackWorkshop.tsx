@@ -8,6 +8,7 @@ import { setLastSettingsSection } from "@/lib/settings-navigation";
 import { errorMessage, packPath, studioFetch } from "@/lib/studio/client";
 import type { PackValidation } from "@/lib/studio/release/validate";
 import type { ExternalChange, JourneyStepState, PackDetails, SkillSummary } from "@/lib/studio/types";
+import { ChatSection } from "./ChatSection";
 import { ConfigurationSection } from "./ConfigurationSection";
 import { FileEditor } from "./FileEditor";
 import { PackHistory } from "./HistoryPanel";
@@ -19,7 +20,7 @@ import { McpSection } from "./mcp/McpSection";
 import { ExportDialog, PublishDialog, PublishedVersions, ValidationDialog } from "./release/ReleaseDialogs";
 import { TestsSection } from "./tests/TestsSection";
 
-const SECTIONS = ["instructions", "skills", "mcp", "tests", "configuration", "history", "providers"] as const;
+const SECTIONS = ["instructions", "skills", "mcp", "tests", "chat", "configuration", "history", "providers"] as const;
 type Section = (typeof SECTIONS)[number];
 
 function isSection(value: string | null): value is Section {
@@ -118,6 +119,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
     { id: "skills", label: t("studio.nav.skills"), count: skills.length },
     { id: "mcp", label: t("studio.nav.mcp") },
     { id: "tests", label: t("studio.nav.tests") },
+    { id: "chat", label: t("studio.nav.chat") },
     { id: "configuration", label: t("studio.nav.configuration") },
     { id: "history", label: t("studio.nav.history") },
     { id: "providers", label: t("studio.nav.providers") },
@@ -187,6 +189,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
           {section === "tests" && (
             <TestsSection packId={packId} pack={pack} skills={skills} advanced={advanced} item={item} onNavigate={(next) => navigate("tests", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
           )}
+          {section === "chat" && <ChatSection packId={packId} pack={pack} item={item} onSelect={(chatId) => navigate("chat", chatId)} />}
           {section === "mcp" && (
             <McpSection packId={packId} pack={pack} advanced={advanced} item={item} onSelect={(next) => navigate("mcp", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
           )}

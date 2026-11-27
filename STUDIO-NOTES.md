@@ -1184,7 +1184,7 @@ Le dialogue « Lancer une campagne » cochait toutes les suites. Il n'en coche p
 
 ## 19. Retours des collègues (2026-11-27)
 
-Trois demandes, livrées en deux lots : A, supprimer un pack et modifier son nom, son identifiant et sa description ; B, discuter avec l'agent depuis le Studio (§19.3, à venir). Choix de Géraldine : la discussion utilise les outils de test du pack ; un pack validé peut être supprimé, avec un avertissement renforcé ; lot A puis lot B.
+Trois demandes, livrées en deux lots : A, supprimer un pack et modifier son nom, son identifiant et sa description ; B, discuter avec l'agent depuis le Studio (§19.3). Choix de Géraldine : la discussion utilise les outils de test du pack ; un pack validé peut être supprimé, avec un avertissement renforcé ; lot A puis lot B.
 
 ### 19.1 Supprimer un pack
 
@@ -1203,3 +1203,20 @@ Changer l'identifiant (`POST /api/studio/packs/<pack>/rename` `{ id }`) déplace
 Refus : identifiant invalide ou déjà pris (`packExists`) ; fichiers modifiés hors Studio (à conserver ou annuler d'abord) ; campagne ou session Pi en cours. Un identifiant qui porte encore des versions publiées d'un pack renommé ou supprimé est refusé à la création comme au renommage (`slugUsedBefore`), sauf pour reprendre un ancien identifiant du même pack. L'ancienne adresse `/studio/A` redirige vers `/studio/B` (`app/studio/[pack]/page.tsx`). La confiance Pi porte sur le dossier des packs entier : rien à refaire. Les sessions de test passées restent lisibles dans Pi Web (ouvertes par leur identifiant), avec l'ancien dossier comme répertoire.
 
 Tests : `lib/studio/pack-lifecycle.test.mjs` (3). Vérifié sur un build de production : renommage depuis l'en-tête, ancienne adresse redirigée, historique, avertissement d'un pack validé, suppression confirmée.
+
+### 19.3 Discuter avec l'agent du pack
+
+**Constat** : pour interroger l'agent hors des suites, il fallait passer par pi-web et retrouver le dossier du pack dans l'explorateur de fichiers.
+
+**Choix** : une rubrique « Discuter » dans l'atelier, entre Tests et Configuration. À gauche, les conversations du pack ; à droite, la fenêtre de conversation de pi-web elle-même (`ChatWindow`), sur une session existante. Rien n'est réécrit : réponses au fil de l'eau, cartes d'outils et MCP, dialogues des extensions, connexion OAuth, choix du modèle et du niveau de raisonnement sont ceux de pi-web.
+
+**Fonctionnement** (`lib/studio/chat.ts`, `/api/studio/packs/<pack>/chats`) :
+- « Nouvelle conversation » : le serveur démarre la session comme un cas de test (`pi-executor.ts`) : dossier du pack, outils des tests (Configuration, `read` par défaut), règle MCP des tests, modèle par défaut du pack (sinon celui de Pi) ; nom `[chat] <titre du pack> · <personne> · <date>` ;
+- la liste montre les sessions `[chat]` du dossier du pack, enregistrées ou encore en mémoire, la plus récente d'abord ; titre = première question ; rafraîchie toutes les 5 s ;
+- « Ouvrir dans Pi Web » ouvre la conversation dans pi-web (`/?pi-web&session=…`, lien simple : §18.6) ;
+- supprimer une conversation la supprime aussi de pi-web ; refusé pendant qu'elle répond ;
+- on discute avec le brouillon en cours, pas avec une version publiée ; si un outil d'écriture est activé, ce que l'agent écrit apparaît dans le bandeau « modifications externes » ;
+- renommer ou supprimer le pack est refusé pendant qu'une conversation répond ; après un renommage, les conversations d'avant restent dans Pi Web (ancien dossier) mais ne sont plus listées.
+
+Tests : `lib/studio/chat.integration.test.mjs` (vraie session pi-web, faux serveur OpenAI : modèle par défaut, outils du pack, nom, historique, liste par pack, autre modèle, suppression). Vérifié sur un build de production avec un faux modèle : deux échanges, rechargement, ouverture dans Pi Web, suppression, sans erreur dans la console.
+

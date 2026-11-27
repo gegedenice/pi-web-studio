@@ -505,6 +505,17 @@ Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
   - pendant une campagne, la suppression est refusée ;
   - côté dépôt (`studio git -C /workspace/packs log --oneline -3`) : « [<pack>] Supprime le pack » ; `git tag` montre toujours les versions publiées.
 
+### V29 — Discuter avec l'agent du pack
+
+- **Action** : dans un pack dont le modèle par défaut est llama.cpp, ouvrez « Discuter », cliquez sur « Nouvelle conversation » et posez deux questions à la suite. Rechargez la page. Cliquez sur « Ouvrir dans Pi Web ». Revenez au Studio et supprimez la conversation (×).
+- **Attendu** :
+  - l'agent répond au fil de l'eau, avec les cartes d'outils comme dans Pi Web ; la deuxième réponse tient compte de la première ;
+  - le modèle affiché sous la zone de saisie est celui du pack ; on peut le changer pour la conversation ;
+  - après rechargement, la conversation est dans la liste (titrée par la première question) et rouverte ;
+  - dans Pi Web, la même conversation, nommée « [chat] <pack> · <vous> · <date> », dans le dossier du pack ;
+  - les sessions de test « [test] … » n'apparaissent pas dans la liste « Discuter » ;
+  - après suppression, elle disparaît du Studio et de Pi Web.
+
 ### V3 et V4 — Au déploiement
 
 Ces deux vérifications demandent le proxy d'authentification (Traefik avec forward-auth). Elles se font donc **au déploiement**, pas en local :
