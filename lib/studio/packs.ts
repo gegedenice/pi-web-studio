@@ -5,7 +5,7 @@ import { commitMessage, type StudioAction } from "./commit-message";
 import { getStudioConfig } from "./config";
 import { StudioError } from "./errors";
 import { contentHash, readPackText, writePackTextAtomic } from "./files";
-import { commitPaths, ensureRepository, type GitAuthor, lastCommitDate, status, withPacksLock } from "./git";
+import { commitPaths, ensureRepository, type GitAuthor, lastCommitDate, listTags, status, withPacksLock } from "./git";
 import {
   AGENTS_FILE,
   APPEND_SYSTEM_FILE,
@@ -65,6 +65,12 @@ export function parsePackMeta(id: string, text: string): PackMeta {
       const readOnly = tests?.mcpTools === "read-only";
       return tools || readOnly ? { tests: { ...(tools ? { tools } : {}), ...(readOnly ? { mcpTools: "read-only" as const } : {}) } } : {};
     })(),
+    ...(() => {
+      const former = Array.isArray(data.formerIds)
+        ? [...new Set(data.formerIds.filter((value): value is string => typeof value === "string" && isSlug(value) && value !== id))].slice(0, 20)
+        : [];
+      return former.length ? { formerIds: former } : {};
+    })(),
   };
 }
 
@@ -77,6 +83,36 @@ export function readPackMeta(packId: string): PackMeta {
   const text = readPackText(resolvePackPath(id, PACK_META_FILE));
   if (text === undefined) throw new StudioError("packNotFound", 404, { id });
   return parsePackMeta(id, text);
+}
+
+/** The pack whose former slugs hold `slug`, if any: an old address of a renamed pack. */
+export function findRenamedPack(slug: string): string | null {
+  if (!isSlug(slug)) return null;
+  let entries;
+  try {
+    entries = readdirSync(packsRoot(), { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !isSlug(entry.name) || entry.name === slug) continue;
+    const text = readPackText(resolvePackPath(entry.name, PACK_META_FILE));
+    if (text !== undefined && parsePackMeta(entry.name, text).formerIds?.includes(slug)) return entry.name;
+  }
+  return null;
+}
+
+/**
+ * Whether `slug` was used by another pack, renamed or deleted since: its
+ * published versions are still tagged under it, and a new pack there would
+ * list them as its own. `except` is the pack asking (a pack may take back
+ * one of its own former slugs).
+ */
+export async function slugUsedBefore(slug: string, except?: string): Promise<boolean> {
+  const owner = findRenamedPack(slug);
+  if (owner && owner !== except) return true;
+  if (except && readPackMeta(except).formerIds?.includes(slug)) return false;
+  return (await listTags(`refs/tags/${slug}/v*`)).length > 0;
 }
 
 /** Folders of the packs repository holding a `.studio/pack.json`. */
@@ -113,6 +149,7 @@ export async function createPack(input: CreatePackInput, author: GitAuthor & { i
     await ensureRepository(author);
     const dir = resolvePackPath(id);
     if (existsSync(dir)) throw new StudioError("packExists", 409, { id });
+    if (await slugUsedBefore(id)) throw new StudioError("slugUsedBefore", 409, { id });
     const meta: PackMeta = {
       id,
       title,
@@ -323,6 +360,24 @@ export function isPackDirectory(path: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** The pack's slug, then the ones it had before a rename, newest first. */
+export function packIds(packId: string): string[] {
+  const meta = readPackMeta(packId);
+  return [meta.id, ...(meta.formerIds ?? [])];
+}
+
+/**
+ * A repository path of the pack under any of its slugs: the slug it was under
+ * (`owner`, for reading it at that revision) and the path inside the pack.
+ */
+export function packRelativeAny(ids: string[], repoRelPath: string): { owner: string; rel: string } | null {
+  for (const owner of ids) {
+    const rel = packRelative(owner, repoRelPath);
+    if (rel !== null) return { owner, rel };
+  }
+  return null;
 }
 
 export function packFolder(packId: string): string {

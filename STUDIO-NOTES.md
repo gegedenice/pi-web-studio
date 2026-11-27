@@ -1181,3 +1181,25 @@ Le dialogue « Lancer une campagne » cochait toutes les suites. Il n'en coche p
 - « π Studio » (barre latérale de pi-web), « Retour à Pi Web » et le lien vers les providers de l'atelier sont des `<a>` simples : un clic est un chargement de page, c'est lui qui fixe le lieu.
 
 **Vérifié sur un build de production** (`next start`, `STUDIO_HOME=true`, mot de passe, service worker actif) : connexion → `/studio` ; « Retour à Pi Web » → `/?pi-web`, lieu pi-web ; F5, saisie de `/`, `/?pi-web`, `/` ×2 → pi-web reste ; clic « π Studio » → `/studio`, lieu effacé ; saisie de `/` → `/studio`. Tests : `proxy.test.mjs` (préchargements et fetchs sans effet, chargements directs et via le service worker).
+
+## 19. Retours des collègues (2026-11-27)
+
+Trois demandes, livrées en deux lots : A, supprimer un pack et modifier son nom, son identifiant et sa description ; B, discuter avec l'agent depuis le Studio (§19.3, à venir). Choix de Géraldine : la discussion utilise les outils de test du pack ; un pack validé peut être supprimé, avec un avertissement renforcé ; lot A puis lot B.
+
+### 19.1 Supprimer un pack
+
+Configuration › « Supprimer le pack » (`DELETE /api/studio/packs/<pack>` `{ confirm }`, `lib/studio/pack-lifecycle.ts`). La personne saisit l'identifiant pour confirmer (vérifié aussi côté serveur). Un pack au statut `valide` ou ayant une version publiée affiche un avertissement rouge. Refusée pendant une campagne ou une session Pi en cours dans le dossier ; les sessions inactives du dossier sont fermées. Le dossier est supprimé, fichiers hors Studio compris, en une version « [pack] Supprime le pack ». L'historique et les tags restent dans le dépôt : un administrateur récupère le pack avec `git checkout <rev>~1 -- <pack>/`. Rien n'est poussé.
+
+### 19.2 Nom, identifiant et description
+
+Nom et description se modifiaient déjà dans Configuration ; on y accède aussi par « Modifier » dans l'en-tête de l'atelier, qui ouvre un dialogue avec le nom, l'identifiant (slug) et la description.
+
+Changer l'identifiant (`POST /api/studio/packs/<pack>/rename` `{ id }`) déplace le dossier en une version « Renomme le pack A en B » et note l'ancien identifiant dans `pack.json` (`formerIds`, le plus récent d'abord). Le dossier et les tags gardent l'ancien nom dans les commits d'avant ; tout ce qui lit ces commits passe par `packIds()` / `packRelativeAny()` :
+- l'historique du pack (`git log` sur tous les dossiers ; les déplacements à l'identique du renommage sont masqués, `pack.json` y apparaît modifié) ;
+- l'historique d'un fichier (`--follow` traverse le renommage ; le déplacement seul n'est pas une version du fichier ; lecture et restauration au chemin de l'époque, champ `slug`) ;
+- les skills supprimées (restaurées depuis leur dossier d'alors) ;
+- les versions publiées (tags `A/v…` listés avec `slug: "A"`, exportées depuis ce dossier ; le prochain numéro tient compte de tous les tags).
+
+Refus : identifiant invalide ou déjà pris (`packExists`) ; fichiers modifiés hors Studio (à conserver ou annuler d'abord) ; campagne ou session Pi en cours. Un identifiant qui porte encore des versions publiées d'un pack renommé ou supprimé est refusé à la création comme au renommage (`slugUsedBefore`), sauf pour reprendre un ancien identifiant du même pack. L'ancienne adresse `/studio/A` redirige vers `/studio/B` (`app/studio/[pack]/page.tsx`). La confiance Pi porte sur le dossier des packs entier : rien à refaire. Les sessions de test passées restent lisibles dans Pi Web (ouvertes par leur identifiant), avec l'ancien dossier comme répertoire.
+
+Tests : `lib/studio/pack-lifecycle.test.mjs` (3). Vérifié sur un build de production : renommage depuis l'en-tête, ancienne adresse redirigée, historique, avertissement d'un pack validé, suppression confirmée.

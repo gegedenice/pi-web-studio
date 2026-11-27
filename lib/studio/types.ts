@@ -24,6 +24,12 @@ export interface PackMeta {
    * the pack's MCP tools, STUDIO-NOTES Q-L3-1).
    */
   tests?: { tools?: string[]; mcpTools?: "read-only" };
+  /**
+   * Slugs the pack had before a rename, newest first: its history, deleted
+   * skills and published versions (tags `<slug>/v…`) live under those folders
+   * in the commits before the rename (STUDIO-NOTES §19.2).
+   */
+  formerIds?: string[];
 }
 
 export interface PackSummary extends PackMeta {
@@ -80,12 +86,16 @@ export interface HistoryEntry {
   message: string;
   /** The file's path relative to the pack at that version (file history only). */
   path?: string;
+  /** The pack's slug at that version, when it was renamed since (file history only). */
+  slug?: string;
   /** Files of the pack this version changed (pack history only). */
   changes?: { status: string; path: string; previousPath?: string }[];
 }
 
 export interface DeletedSkill {
   name: string;
+  /** The pack's slug when the skill was deleted, when it was renamed since. */
+  slug?: string;
   /** The version that deleted it; the skill is restored from the one before. */
   rev: string;
   date: string;

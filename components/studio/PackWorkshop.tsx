@@ -11,6 +11,7 @@ import type { ExternalChange, JourneyStepState, PackDetails, SkillSummary } from
 import { ConfigurationSection } from "./ConfigurationSection";
 import { FileEditor } from "./FileEditor";
 import { PackHistory } from "./HistoryPanel";
+import { DeletePackDialog, PackIdentityDialog } from "./PackIdentityDialogs";
 import { SkillsSection } from "./SkillsSection";
 import { StudioHeader } from "./StudioHeader";
 import { ConfirmDialog, Notice, useAdvancedMode } from "./StudioUi";
@@ -60,6 +61,8 @@ export function PackWorkshop({ packId }: { packId: string }) {
   const [publishing, setPublishing] = useState<PackValidation | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
   const [published, setPublished] = useState<string | null>(null);
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [deletingPack, setDeletingPack] = useState(false);
   const dirtyRef = useRef(false);
   const describePath = useDescribePath();
 
@@ -128,6 +131,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
         onAdvancedChange={setAdvanced}
         onValidate={() => setValidating(true)}
         onExport={() => setExporting("")}
+        onEditIdentity={() => setEditingIdentity(true)}
       />
       <div className="studio-workshop">
         <nav className="studio-nav" aria-label={t("studio.nav.label")}>
@@ -172,7 +176,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
               advanced={advanced}
             />
           )}
-          {section === "configuration" && <ConfigurationSection pack={pack} advanced={advanced} onSaved={changed} onDirtyChange={onDirtyChange} />}
+          {section === "configuration" && <ConfigurationSection pack={pack} advanced={advanced} onSaved={changed} onDirtyChange={onDirtyChange} onEditIdentity={() => setEditingIdentity(true)} onDeletePack={() => setDeletingPack(true)} />}
           {section === "history" && (
             <>
               <PublishedVersions packId={packId} refreshKey={refreshKey} onExport={(version) => setExporting(version)} />
@@ -205,6 +209,19 @@ export function PackWorkshop({ packId }: { packId: string }) {
           onPublished={(outcome) => { setPublishing(null); setPublished(outcome.version.version); changed(); }}
         />
       )}
+      {editingIdentity && (
+        <PackIdentityDialog
+          pack={pack}
+          onClose={() => setEditingIdentity(false)}
+          onSaved={(id) => {
+            setEditingIdentity(false);
+            if (id === packId) changed();
+            // Renamed: the same section, at the pack's new address.
+            else router.replace(`/studio/${encodeURIComponent(id)}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`);
+          }}
+        />
+      )}
+      {deletingPack && <DeletePackDialog pack={pack} onClose={() => setDeletingPack(false)} onDeleted={() => router.push("/studio?deleted=" + encodeURIComponent(pack.meta.title))} />}
       {exporting !== null && <ExportDialog packId={packId} initialVersion={exporting || undefined} onClose={() => setExporting(null)} />}
     </div>
   );

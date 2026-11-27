@@ -1,4 +1,5 @@
 import { connectStep, listMcpServers } from "@/lib/studio/mcp/servers";
+import { deletePack } from "@/lib/studio/pack-lifecycle";
 import { packDetails, readDefaultModel, updatePackConfig } from "@/lib/studio/packs";
 import { identityOf, readJsonBody, studioHandle } from "@/lib/studio/route";
 import { listSkills } from "@/lib/studio/skills";
@@ -43,5 +44,15 @@ export async function PATCH(req: Request, { params }: Params) {
       note: body.note,
     }, identityOf(req));
     return { meta };
+  });
+}
+
+// DELETE /api/studio/packs/<pack> { confirm } — removes the pack's folder in one version; `confirm` is its slug.
+export async function DELETE(req: Request, { params }: Params) {
+  const { pack } = await params;
+  return studioHandle(async () => {
+    const body = await readJsonBody(req);
+    await deletePack(pack, body.confirm, identityOf(req));
+    return { deleted: pack };
   });
 }

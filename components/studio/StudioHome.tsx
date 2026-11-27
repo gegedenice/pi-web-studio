@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/hooks/useI18n";
 import { errorMessage, studioFetch } from "@/lib/studio/client";
@@ -15,6 +15,9 @@ export function StudioHome() {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const router = useRouter();
+  // Back from « Supprimer le pack »: says which pack went, once.
+  const deleted = useSearchParams().get("deleted");
 
   const load = useCallback(() => {
     studioFetch<{ packs: PackSummary[] }>("/packs")
@@ -34,6 +37,11 @@ export function StudioHome() {
           </div>
           <button type="button" className="studio-button is-primary" onClick={() => setCreating(true)}>{t("studio.home.new")}</button>
         </header>
+        {deleted && (
+          <Notice kind="success" actions={<button type="button" className="studio-button" onClick={() => router.replace("/studio")}>{t("studio.common.close")}</button>}>
+            {t("studio.home.deleted", { title: deleted })}
+          </Notice>
+        )}
         {error && <Notice kind="error">{error}</Notice>}
         {packs === null && !error && <p className="studio-muted">{t("studio.common.loading")}</p>}
         {packs?.length === 0 && (

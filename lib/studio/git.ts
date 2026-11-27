@@ -158,14 +158,15 @@ export interface LogEntry {
   email: string;
   date: string;
   subject: string;
-  changes: { status: string; path: string; previousPath?: string }[];
+  /** `score`: Git's similarity of a rename or copy, 100 when the content did not change. */
+  changes: { status: string; path: string; previousPath?: string; score?: number }[];
 }
 
 const FIELD = "\x1f";
 const RECORD = "\x1e";
 
-/** Commits touching `pathspec`, newest first, with the files each changed. */
-export async function log(pathspec: string, options: { follow?: boolean; limit?: number } = {}): Promise<LogEntry[]> {
+/** Commits touching `pathspec` (one or several), newest first, with the files each changed. */
+export async function log(pathspec: string | string[], options: { follow?: boolean; limit?: number } = {}): Promise<LogEntry[]> {
   if (!(await hasHead())) return [];
   const args = [
     "log",
@@ -175,7 +176,7 @@ export async function log(pathspec: string, options: { follow?: boolean; limit?:
     `-n${options.limit ?? 200}`,
     ...(options.follow ? ["--follow"] : []),
     "--",
-    pathspec,
+    ...(Array.isArray(pathspec) ? pathspec : [pathspec]),
   ];
   const output = await git(args);
   return output.split(RECORD).filter(Boolean).map((record) => {
@@ -185,7 +186,7 @@ export async function log(pathspec: string, options: { follow?: boolean; limit?:
       const parts = line.split("\t");
       const status = parts[0].charAt(0);
       return parts.length >= 3
-        ? { status, previousPath: parts[1], path: parts[2] }
+        ? { status, previousPath: parts[1], path: parts[2], score: Number(parts[0].slice(1)) || 0 }
         : { status, path: parts[1] };
     });
     return { rev, author, email, date, subject: subject ?? "", changes };

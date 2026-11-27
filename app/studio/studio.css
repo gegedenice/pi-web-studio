@@ -595,3 +595,7 @@
 .studio-file-row.is-selected { border-color: var(--accent); background: var(--bg-selected); }
 .studio-file-row .studio-mono { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .studio-file-open { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+
+/* Configuration: the pack's identifier and its deletion (STUDIO-NOTES §19). */
+.studio-readonly-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.studio-danger-zone { border-color: #ef4444; }

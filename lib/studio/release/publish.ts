@@ -1,7 +1,7 @@
 import { StudioError } from "../errors";
 import { readPackText, writePackTextAtomic } from "../files";
 import { createTag, type GitAuthor, listTags, tagExists, withPacksLock } from "../git";
-import { commitPackChange, externalChanges, readPackMeta, serializePackMeta } from "../packs";
+import { commitPackChange, externalChanges, packIds, readPackMeta, serializePackMeta } from "../packs";
 import { assertPackId, PACK_META_FILE, resolvePackPath } from "../paths";
 import type { McpInspector } from "../mcp/inspect";
 import { type PackValidation, validatePack } from "./validate";
@@ -15,6 +15,8 @@ export const NOTE_MAX_LENGTH = 2000;
 export interface PublishedVersion {
   version: string;
   tag: string;
+  /** The pack's folder in that version, when the pack was renamed since. */
+  slug?: string;
   date: string;
   author: string;
   note: string;
@@ -47,14 +49,27 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+/** Every published version, under the pack's slug and the ones it had before a rename. */
 export async function listPublishedVersions(packId: string): Promise<PublishedVersion[]> {
   const id = assertPackId(packId);
-  readPackMeta(id);
-  const prefix = `${id}/v`;
-  return (await listTags(`refs/tags/${id}/v*`))
-    .filter((tag) => tag.name.startsWith(prefix) && /^\d+(\.\d+){0,2}$/.test(tag.name.slice(prefix.length)))
-    .map((tag) => ({ version: tag.name.slice(prefix.length), tag: tag.name, date: tag.date, author: tag.tagger, note: tag.message, rev: tag.rev }))
-    .sort((a, b) => compareVersions(a.version, b.version));
+  const versions: PublishedVersion[] = [];
+  for (const slug of packIds(id)) {
+    const prefix = `${slug}/v`;
+    for (const tag of await listTags(`refs/tags/${slug}/v*`)) {
+      const version = tag.name.slice(prefix.length);
+      if (!tag.name.startsWith(prefix) || !/^\d+(\.\d+){0,2}$/.test(version)) continue;
+      // A version number is published once; the newest slug wins if both hold it.
+      if (versions.some((item) => item.version === version)) continue;
+      versions.push({ version, tag: tag.name, ...(slug !== id ? { slug } : {}), date: tag.date, author: tag.tagger, note: tag.message, rev: tag.rev });
+    }
+  }
+  return versions.sort((a, b) => compareVersions(a.version, b.version));
+}
+
+/** Whether `version` was published, under any slug the pack had. */
+async function isPublished(packId: string, version: string): Promise<boolean> {
+  for (const slug of packIds(packId)) if (await tagExists(tagName(slug, version))) return true;
+  return false;
 }
 
 /**
@@ -65,7 +80,7 @@ export async function nextVersion(packId: string, step: VersionStep = "minor"): 
   const id = assertPackId(packId);
   const current = readPackMeta(id).version;
   if (step === "major") return bumpVersion(current, "major");
-  return (await tagExists(tagName(id, current))) ? bumpVersion(current, "minor") : current;
+  return (await isPublished(id, current)) ? bumpVersion(current, "minor") : current;
 }
 
 export interface PublishInput {
@@ -98,7 +113,7 @@ export async function publishVersion(packId: string, input: PublishInput, author
     const meta = readPackMeta(id);
     const version = await nextVersion(id, step);
     const tag = tagName(id, version);
-    if (await tagExists(tag)) throw new StudioError("versionExists", 409, { version });
+    if (await isPublished(id, version)) throw new StudioError("versionExists", 409, { version });
     const validated = validation.level === "ok";
     const next = { ...meta, version, ...(validated ? { status: "valide" as const } : {}) };
     const path = resolvePackPath(id, PACK_META_FILE);

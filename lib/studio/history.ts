@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { StudioError } from "./errors";
 import { contentHash, readPackText, removePackEntry, writePackTextAtomic } from "./files";
 import { assertRevision, git, type GitAuthor, listTree, log, showFile, withPacksLock } from "./git";
-import { commitPackChange, externalChanges, readPackMeta } from "./packs";
+import { commitPackChange, externalChanges, packIds, packRelativeAny, readPackMeta } from "./packs";
 import {
   assertPackId,
   assertSkillName,
@@ -129,11 +129,25 @@ export async function writeEditableFile(
 export async function fileHistory(packId: string, relPath: string): Promise<HistoryEntry[]> {
   const id = assertPackId(packId);
   const rel = assertVersionedFile(relPath);
+  const ids = packIds(id);
+  // --follow takes one path: it follows the file across the pack's renames too.
   const entries = await log(repoPath(id, rel), { follow: true });
-  return entries.map((entry) => {
+  return entries.filter((entry) => {
+    // The pack's own rename moved the file without changing it: no version of the file.
     const changed = entry.changes[0];
-    const path = changed ? packRelative(id, changed.path) ?? rel : rel;
-    return { rev: entry.rev, author: entry.author, date: entry.date, message: entry.subject, path };
+    if (!changed?.previousPath || changed.status !== "R" || changed.score !== 100) return true;
+    return packRelativeAny(ids, changed.previousPath)?.rel !== packRelativeAny(ids, changed.path)?.rel;
+  }).map((entry) => {
+    const changed = entry.changes[0];
+    const at = changed ? packRelativeAny(ids, changed.path) : null;
+    return {
+      rev: entry.rev,
+      author: entry.author,
+      date: entry.date,
+      message: entry.subject,
+      path: at?.rel ?? rel,
+      ...(at && at.owner !== id ? { slug: at.owner } : {}),
+    };
   });
 }
 
@@ -148,7 +162,7 @@ export async function fileAtVersion(packId: string, relPath: string, revInput: u
   const id = assertPackId(packId);
   const rev = assertRevision(revInput);
   const entry = await findVersion(id, relPath, rev);
-  const content = await showFile(entry.rev, repoPath(id, entry.path ?? relPath));
+  const content = await showFile(entry.rev, repoPath(entry.slug ?? id, entry.path ?? relPath));
   return { content: content ?? "", deleted: content === undefined };
 }
 
@@ -162,7 +176,7 @@ export async function restoreFile(packId: string, relPath: string, revInput: unk
   const rev = assertRevision(revInput);
   return withPacksLock(async () => {
     const entry = await findVersion(id, rel, rev);
-    let content = await showFile(entry.rev, repoPath(id, entry.path ?? rel));
+    let content = await showFile(entry.rev, repoPath(entry.slug ?? id, entry.path ?? rel));
     if (content === undefined) throw new StudioError("versionIsDeletion", 409);
     const skill = SKILL_FILE_PATTERN.exec(rel);
     if (skill) {
@@ -176,37 +190,56 @@ export async function restoreFile(packId: string, relPath: string, revInput: unk
   });
 }
 
-/** Every version of the pack, newest first, with the files each one changed. */
-export async function packHistory(packId: string): Promise<HistoryEntry[]> {
-  const id = assertPackId(packId);
-  readPackMeta(id);
-  const entries = await log(repoPath(id), { limit: 300 });
+interface PackLogEntry extends HistoryEntry {
+  changes: { status: string; path: string; previousPath?: string; owner: string }[];
+}
+
+/** The pack's commits under its slug and the ones it had before; paths relative to the pack. */
+async function packLog(id: string): Promise<PackLogEntry[]> {
+  const ids = packIds(id);
+  const entries = await log(ids.map((slug) => repoPath(slug)), { limit: 300 });
   return entries.map((entry) => ({
     rev: entry.rev,
     author: entry.author,
     date: entry.date,
     message: entry.subject,
     changes: entry.changes.flatMap((change) => {
-      const path = packRelative(id, change.path);
-      if (path === null) return [];
-      const previousPath = change.previousPath ? packRelative(id, change.previousPath) ?? undefined : undefined;
-      return [{ status: change.status, path, ...(previousPath ? { previousPath } : {}) }];
+      const at = packRelativeAny(ids, change.path);
+      if (at === null) return [];
+      const previousPath = change.previousPath ? packRelativeAny(ids, change.previousPath)?.rel : undefined;
+      // The pack's own rename moves every file to the same place inside the pack:
+      // unchanged, it is no change of the pack; changed (pack.json), a modification.
+      const moved = change.status === "R" && previousPath === at.rel;
+      if (moved && change.score === 100) return [];
+      if (moved) return [{ status: "M", path: at.rel, owner: at.owner }];
+      return [{ status: change.status, path: at.rel, owner: at.owner, ...(previousPath ? { previousPath } : {}) }];
     }),
+  }));
+}
+
+/** Every version of the pack, newest first, with the files each one changed. */
+export async function packHistory(packId: string): Promise<HistoryEntry[]> {
+  const id = assertPackId(packId);
+  readPackMeta(id);
+  return (await packLog(id)).map((entry) => ({
+    ...entry,
+    changes: entry.changes.map((change) => ({ status: change.status, path: change.path, ...(change.previousPath ? { previousPath: change.previousPath } : {}) })),
   }));
 }
 
 /** Skills deleted from the pack and not back since: the latest deletion of each. */
 export async function deletedSkills(packId: string): Promise<DeletedSkill[]> {
   const id = assertPackId(packId);
+  readPackMeta(id);
   const found = new Map<string, DeletedSkill>();
-  for (const entry of await packHistory(id)) {
-    for (const change of entry.changes ?? []) {
+  for (const entry of await packLog(id)) {
+    for (const change of entry.changes) {
       // A rename is not a deletion: the skill lives on under its new name.
       const deletedPath = change.status === "D" ? change.path : undefined;
       const match = deletedPath ? SKILL_FILE_PATTERN.exec(deletedPath) : null;
       if (!match || found.has(match[1])) continue;
       if (existsSync(resolvePackPath(id, skillDirRel(match[1])))) continue;
-      found.set(match[1], { name: match[1], rev: entry.rev, date: entry.date, author: entry.author });
+      found.set(match[1], { name: match[1], rev: entry.rev, date: entry.date, author: entry.author, ...(change.owner !== id ? { slug: change.owner } : {}) });
     }
   }
   return [...found.values()];
@@ -222,10 +255,11 @@ export async function restoreDeletedSkill(packId: string, skillName: unknown, re
     if (!deletion) throw new StudioError("versionNotFound", 404);
     if (existsSync(resolvePackPath(id, skillDirRel(name)))) throw new StudioError("skillExists", 409, { name });
     const before = `${deletion.rev}~1`;
-    const files = await listTree(before, repoPath(id, skillDirRel(name)));
+    const slug = deletion.slug ?? id;
+    const files = await listTree(before, repoPath(slug, skillDirRel(name)));
     if (!files.length) throw new StudioError("versionNotFound", 404);
     for (const file of files) {
-      const rel = packRelative(id, file);
+      const rel = packRelative(slug, file);
       const content = rel === null ? undefined : await showFile(before, file);
       if (rel === null || content === undefined) continue;
       writePackTextAtomic(resolvePackPath(id, rel), rel === skillFileRel(name) ? withSkillName(content, name) : content);

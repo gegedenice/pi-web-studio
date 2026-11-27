@@ -21,9 +21,11 @@ export async function exportVersion(packId: string, versionInput: unknown, optio
   if (!versions.length) throw new StudioError("exportNoVersion", 404);
   const version = typeof versionInput === "string" && versionInput ? versions.find((item) => item.version === versionInput) : versions[0];
   if (!version) throw new StudioError("versionNotFound", 404);
-  const secrets = findSecrets(await showFile(version.tag, repoPath(id, MCP_CONFIG_FILE)), await showFile(version.tag, repoPath(id, SETTINGS_FILE)));
+  // A version published before the pack was renamed holds it under its slug of then.
+  const dir = version.slug ?? id;
+  const secrets = findSecrets(await showFile(version.tag, repoPath(dir, MCP_CONFIG_FILE)), await showFile(version.tag, repoPath(dir, SETTINGS_FILE)));
   if (secrets.length) throw new StudioError("exportSecrets", 409, { version: version.version, where: secrets.map((item) => item.where).join(", ") });
   const prefix = `${id}-v${version.version}`;
-  const content = await archiveZip(version.tag, repoPath(id), prefix, options.runs ? [] : [RUNS_DIR]);
+  const content = await archiveZip(version.tag, repoPath(dir), prefix, options.runs ? [] : [RUNS_DIR]);
   return { fileName: `${prefix}.zip`, content };
 }

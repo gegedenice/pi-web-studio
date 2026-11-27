@@ -5,6 +5,8 @@
 
 export type StudioAction =
   | { kind: "create-pack" }
+  | { kind: "rename-pack"; from: string; to: string }
+  | { kind: "delete-pack" }
   | { kind: "edit-file"; path: string }
   | { kind: "create-skill"; name: string }
   | { kind: "import-skill"; name: string }
@@ -61,6 +63,8 @@ function shortDate(iso: string): string {
 export function describeAction(action: StudioAction): string {
   switch (action.kind) {
     case "create-pack": return "Crée le pack";
+    case "rename-pack": return `Renomme le pack ${action.from} en ${action.to}`;
+    case "delete-pack": return "Supprime le pack";
     case "edit-file": return `Modifie ${fileLabel(action.path)}`;
     case "create-skill": return `Crée skill ${action.name}`;
     case "import-skill": return `Importe skill ${action.name}`;

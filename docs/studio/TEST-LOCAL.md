@@ -485,6 +485,26 @@ Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
   - pendant qu'une campagne tourne, « Supprimer » est grisé ;
   - l'Historique du pack montre « Supprime la campagne … ».
 
+### V27 — Modifier le nom, l'identifiant et la description d'un pack
+
+- **Action** : dans l'en-tête de l'atelier, cliquez sur « Modifier » à côté du nom du pack (ou Configuration › Identifiant › « Modifier »). Changez le titre, la description et l'identifiant, puis enregistrez. Ouvrez ensuite l'ancienne adresse `/studio/<ancien-identifiant>`.
+- **Attendu** :
+  - l'atelier s'ouvre à la nouvelle adresse, dans la même rubrique, avec le nouveau titre ;
+  - l'ancienne adresse mène au pack renommé ;
+  - Historique : « Renomme le pack … en … » en tête, et toutes les versions d'avant (jusqu'à « Crée le pack ») ; les versions publiées avant le renommage sont toujours listées et s'exportent ; l'historique d'une skill remonte avant le renommage ;
+  - le renommage est refusé, avec un message clair, pendant une campagne, quand des fichiers ont été modifiés hors du Studio, ou vers l'identifiant d'un autre pack ;
+  - un identifiant qui a déjà servi à un pack publié puis renommé ou supprimé est refusé (ses versions publiées portent ce nom).
+
+### V28 — Supprimer un pack
+
+- **Action** : Configuration › « Supprimer le pack ». Essayez d'abord sur un pack au statut « Validé » ou avec une version publiée, puis sur un pack d'essai : saisissez son identifiant et confirmez.
+- **Attendu** :
+  - pour un pack validé ou publié, un avertissement rouge « Attention : ce pack est peut-être utilisé » ;
+  - le bouton reste grisé tant que l'identifiant saisi n'est pas exact ;
+  - après suppression : retour à la liste des packs avec « Le pack … a été supprimé », le pack n'y est plus ;
+  - pendant une campagne, la suppression est refusée ;
+  - côté dépôt (`studio git -C /workspace/packs log --oneline -3`) : « [<pack>] Supprime le pack » ; `git tag` montre toujours les versions publiées.
+
 ### V3 et V4 — Au déploiement
 
 Ces deux vérifications demandent le proxy d'authentification (Traefik avec forward-auth). Elles se font donc **au déploiement**, pas en local :

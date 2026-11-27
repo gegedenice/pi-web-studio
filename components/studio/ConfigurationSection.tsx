@@ -10,9 +10,11 @@ import { Notice, useSaveShortcut, useUnsavedGuard } from "./StudioUi";
 
 interface ModelOption { id: string; name: string; provider: string }
 
-export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }: {
+export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange, onEditIdentity, onDeletePack }: {
   pack: PackDetails;
   advanced: boolean;
+  onEditIdentity: () => void;
+  onDeletePack: () => void;
   onSaved: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -104,6 +106,14 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
           <input id="studio-config-title" className="studio-input" value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} />
         </div>
         <div className="studio-field">
+          <span className="studio-field-label">{t("studio.config.identity")}</span>
+          <span className="studio-readonly-row">
+            <span className="studio-readonly studio-mono">{pack.meta.id}</span>
+            <button type="button" className="studio-button" onClick={onEditIdentity}>{t("studio.identity.edit")}</button>
+          </span>
+          <p className="studio-hint">{t("studio.config.identityHint")}</p>
+        </div>
+        <div className="studio-field">
           <label htmlFor="studio-config-description">{t("studio.config.description")}</label>
           <textarea id="studio-config-description" className="studio-textarea" rows={3} maxLength={1000} value={description} onChange={(event) => setDescription(event.target.value)} />
         </div>
@@ -172,6 +182,13 @@ export function ConfigurationSection({ pack, advanced, onSaved, onDirtyChange }:
           />
         </section>
       )}
+      <section className="studio-card studio-danger-zone" aria-labelledby="studio-config-danger">
+        <h3 id="studio-config-danger" className="studio-subtitle">{t("studio.config.dangerTitle")}</h3>
+        <p className="studio-hint">{t("studio.config.dangerIntro")}</p>
+        <div className="studio-list-actions">
+          <button type="button" className="studio-button is-danger" onClick={onDeletePack}>{t("studio.deletePack.action")}</button>
+        </div>
+      </section>
     </div>
   );
 }

@@ -7,8 +7,9 @@ import { studioFetch } from "@/lib/studio/client";
 import { logout, logoutPlan } from "@/lib/studio/logout";
 import type { PackDetails, StudioIdentityInfo } from "@/lib/studio/types";
 
-export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onExport }: {
+export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onExport, onEditIdentity }: {
   pack?: PackDetails;
+  onEditIdentity?: () => void;
   advanced?: boolean;
   onAdvancedChange?: (value: boolean) => void;
   onValidate?: () => void;
@@ -37,6 +38,11 @@ export function StudioHeader({ pack, advanced, onAdvancedChange, onValidate, onE
           <span className="studio-active-label">{t("studio.header.activePack")}</span>
           <span className="studio-active-title">{pack.meta.title}</span>
           <span className="studio-version">{t("studio.header.version", { version: pack.meta.version })}</span>
+          {onEditIdentity && (
+            <button type="button" className="studio-link-button" title={t("studio.identity.editHint")} onClick={onEditIdentity}>
+              {t("studio.identity.edit")}
+            </button>
+          )}
         </div>
       )}
       <div className="studio-header-actions">
