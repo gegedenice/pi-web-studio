@@ -50,7 +50,7 @@ import { createExactSystemPromptExtension } from "./exact-system-prompt";
 import { createPiWebBuiltinExtensions, createSubagentCodemodeExtension, createSubagentMcpExtensions } from "./builtin-extensions";
 import type { McpHost } from "./mcp-host";
 import { mcpPromptPreparation, type McpCommandCandidate } from "./mcp-command";
-import { createReadOnlyMcpPolicyExtension, createSubagentMcpPolicyExtension } from "./mcp-read-only-policy";
+import { createReadOnlyMcpPolicyExtension, createSubagentMcpPolicyExtension, READ_ONLY_MCP_POLICY_EXTENSION_NAME } from "./mcp-read-only-policy";
 import { createSubagentSkillsBinding } from "./subagent-skills";
 import { isNestedToolExecutionEvent } from "./agent-event-wire";
 import {
@@ -220,6 +220,13 @@ export interface RpcSessionStartOptions {
   initialModel?: { provider: string; modelId: string };
   allowInitialModelFallback?: boolean;
   thinkingLevel?: ThinkingLevel;
+  /**
+   * False leaves out the read-only MCP policy (`lib/mcp-read-only-policy.ts`).
+   * PI Studio's test sessions only (STUDIO-NOTES §13, Q-L3-1): their pack's
+   * servers are chosen by the integrator, and a read-only selection is how
+   * they keep the model from writing in the pack folder.
+   */
+  mcpReadOnlyPolicy?: boolean;
 }
 
 const CODING_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
@@ -2559,7 +2566,7 @@ export async function startRpcSession(
                 () => listSubagentProfiles(sessionCwd),
                 isBuiltInSubagentsEnabled,
               ),
-            ],
+            ].filter((extension) => options.mcpReadOnlyPolicy !== false || extension.name !== READ_ONLY_MCP_POLICY_EXTENSION_NAME),
             extensionsOverride: (base) => preferUserBashExtension(preferPiWebSubagentExtension(base)),
           },
       ...(trustReloadOptions ? { resourceLoaderReloadOptions: trustReloadOptions } : {}),
