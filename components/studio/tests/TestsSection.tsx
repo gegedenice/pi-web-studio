@@ -6,6 +6,7 @@ import { errorMessage, packPath, studioFetch } from "@/lib/studio/client";
 import type { PackDetails, SkillSummary } from "@/lib/studio/types";
 import { Notice } from "../StudioUi";
 import { CompareTab } from "./CompareTab";
+import { EvaluationGrid } from "./EvaluationGrid";
 import { RunsTab } from "./RunsTab";
 import { type SuiteSummary, SuitesTab } from "./SuitesTab";
 
@@ -59,6 +60,7 @@ export function TestsSection({ packId, pack, skills, advanced, item, onNavigate,
           </button>
         ))}
       </div>
+      {(tab === "suites" || tab === "runs") && <EvaluationGrid />}
       {error && <Notice kind="error">{error}</Notice>}
       {suites === null && !error && <p className="studio-muted">{t("studio.common.loading")}</p>}
       {suites && tab === "suites" && (

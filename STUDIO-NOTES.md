@@ -1220,3 +1220,15 @@ Tests : `lib/studio/pack-lifecycle.test.mjs` (3). Vérifié sur un build de prod
 
 Tests : `lib/studio/chat.integration.test.mjs` (vraie session pi-web, faux serveur OpenAI : modèle par défaut, outils du pack, nom, historique, liste par pack, autre modèle, suppression). Vérifié sur un build de production avec un faux modèle : deux échanges, rechargement, ouverture dans Pi Web, suppression, sans erreur dans la console.
 
+## 20. La grille d'évaluation dans Tests (2026-11-27)
+
+**Demande** : les attendus des suites renvoient à une grille documentée hors du Studio ; le testeur doit l'avoir sous les yeux.
+
+**Choix** : un encadré repliable « Grille d'évaluation des réponses » au-dessus des onglets Suites et Campagnes (`components/studio/tests/EvaluationGrid.tsx`), là où on écrit les attendus et où on juge. Ouvert ou fermé, il reste comme le testeur l'a laissé (stockage du navigateur). Textes dans `lib/studio/i18n` (`studio.grid.*`).
+
+**Grille réécrite** : la version d'origine (« Aucune référence n'est absente de la trace des appels d'outils ») ne disait pas où regarder ; la trace n'est pas dans la réponse mais dans « Outils utilisés » de chaque cas d'une campagne. La grille a donc quatre colonnes : critère, ce qui rend la réponse bonne sur ce point, où le vérifier, l'effet sur le verdict. Mêmes critères et même sévérité : Vérifiable, Fiable et Robuste bloquants (KO) ; Rejouable mène au plus à Partiel ; Sourcé, Transparent et Nuancé ne sont pas bloquants (à noter en commentaire). Trois règles de verdict (OK, Partiel, KO) en dessous.
+
+La grille est la même pour tous les packs. Si un pack doit avoir la sienne, elle pourra devenir un fichier du pack, modifiable dans le Studio.
+
+Au passage : l'anglais suit les libellés modifiés à la main dans `fr.ts` (« Chatbot », intro de la rubrique sans `{model}` ni `{tools}`).
+

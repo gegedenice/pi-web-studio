@@ -5,7 +5,6 @@ import { ChatWindow } from "@/components/ChatWindow";
 import { useI18n } from "@/hooks/useI18n";
 import type { PackChat } from "@/lib/studio/chat";
 import { errorMessage, packPath, studioFetch } from "@/lib/studio/client";
-import type { PackDetails } from "@/lib/studio/types";
 import type { SessionInfo } from "@/lib/types";
 import { ConfirmDialog, formatStudioDate, Notice } from "./StudioUi";
 
@@ -20,9 +19,8 @@ function chatTitle(chat: PackChat, fallback: string): string {
   return chat.firstMessage.trim().split("\n")[0]?.slice(0, 80) || fallback;
 }
 
-export function ChatSection({ packId, pack, item, onSelect }: {
+export function ChatSection({ packId, item, onSelect }: {
   packId: string;
-  pack: PackDetails;
   item: string | null;
   onSelect: (chatId: string | null) => void;
 }) {
@@ -103,8 +101,6 @@ export function ChatSection({ packId, pack, item, onSelect }: {
     transient: selected.transient,
   } : null, [selected, packDir]);
 
-  const tools = (pack.meta.tests?.tools?.length ? pack.meta.tests.tools : ["read"]).join(", ");
-  const model = pack.defaultModel ? `${pack.defaultModel.provider}/${pack.defaultModel.modelId}` : t("studio.chat.noDefaultModel");
   const piWebHref = selected ? `/?pi-web&session=${encodeURIComponent(selected.id)}` : null;
 
   return (
@@ -112,7 +108,7 @@ export function ChatSection({ packId, pack, item, onSelect }: {
       <header className="studio-section-header is-row">
         <div>
           <h2 className="studio-title">{t("studio.nav.chat")}</h2>
-          <p className="studio-muted">{t("studio.chat.intro", { model, tools })}</p>
+          <p className="studio-muted">{t("studio.chat.intro")}</p>
         </div>
         <div className="studio-list-actions">
           {piWebHref && (

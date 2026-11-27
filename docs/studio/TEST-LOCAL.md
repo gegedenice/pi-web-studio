@@ -516,6 +516,14 @@ Le Studio ne fait pas la connexion OAuth lui-même : il utilise celle de Pi Web.
   - les sessions de test « [test] … » n'apparaissent pas dans la liste « Discuter » ;
   - après suppression, elle disparaît du Studio et de Pi Web.
 
+### V30 — La grille d'évaluation sous les yeux
+
+- **Action** : Tests › Suites, dépliez « Grille d'évaluation des réponses ». Passez à l'onglet Campagnes, ouvrez un cas d'une campagne terminée.
+- **Attendu** :
+  - la grille est dépliée dans les deux onglets (elle garde l'état choisi, même après rechargement) ;
+  - chaque critère dit où vérifier ; « Outils utilisés » du cas montre bien les résultats des outils à comparer avec la réponse ;
+  - elle n'apparaît pas dans l'onglet Comparaison.
+
 ### V3 et V4 — Au déploiement
 
 Ces deux vérifications demandent le proxy d'authentification (Traefik avec forward-auth). Elles se font donc **au déploiement**, pas en local :

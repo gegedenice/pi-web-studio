@@ -189,7 +189,7 @@ export function PackWorkshop({ packId }: { packId: string }) {
           {section === "tests" && (
             <TestsSection packId={packId} pack={pack} skills={skills} advanced={advanced} item={item} onNavigate={(next) => navigate("tests", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
           )}
-          {section === "chat" && <ChatSection packId={packId} pack={pack} item={item} onSelect={(chatId) => navigate("chat", chatId)} />}
+          {section === "chat" && <ChatSection packId={packId} item={item} onSelect={(chatId) => navigate("chat", chatId)} />}
           {section === "mcp" && (
             <McpSection packId={packId} pack={pack} advanced={advanced} item={item} onSelect={(next) => navigate("mcp", next)} onChanged={changed} onDirtyChange={onDirtyChange} />
           )}

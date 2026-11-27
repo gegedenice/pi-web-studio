@@ -617,3 +617,10 @@
   .studio-chat-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(420px, 1fr); height: auto; }
   .studio-chat-list { max-height: 180px; }
 }
+
+/* The answer-evaluation grid above Suites and Campagnes (STUDIO-NOTES §20). */
+.studio-evaluation-grid > summary { cursor: pointer; margin: 0; }
+.studio-evaluation-grid[open] > summary { margin-bottom: 8px; }
+.studio-evaluation-grid th[scope="row"] { white-space: nowrap; }
+.studio-evaluation-grid td, .studio-evaluation-grid th { vertical-align: top; }
+.studio-grid-rules { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; font-size: 13px; }
